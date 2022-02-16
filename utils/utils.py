@@ -1,6 +1,8 @@
 import os
 import torch
 from collections import OrderedDict
+import nibabel as nib
+
 
 def mkdirs(paths):
     if isinstance(paths, list) and not isinstance(paths, str):
@@ -30,3 +32,16 @@ def new_state_dict(file_name):
         else:
             new_state_dict[k] = v
     return new_state_dict
+
+
+def create_path(some_path):
+    if not os.path.exists(some_path):
+        os.makedirs(some_path)
+
+
+def save_img(image, affine, filename):
+    nifti_img = nib.Nifti1Image(image, affine)
+    if os.path.exists(filename):
+        raise OSError("File already exists! Killing job")
+    else:
+        nib.save(nifti_img, filename)

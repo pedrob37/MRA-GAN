@@ -1,8 +1,8 @@
 pillow
 pandas
 pydicom
-nibabel
-tqdm
+nibabel~=3.2.2
+tqdm~=4.62.3
 torchvision>=0.2.1
 dominate>=2.3.1
 visdom>=0.1.8.
@@ -11,3 +11,8 @@ torchsummary
 torchsummaryX
 scikit-image
 scikit-learn
+torch~=1.10.1
+numpy~=1.19.5
+scipy~=1.5.4
+monai~=0.8.0
+matplotlib~=3.3.4
