@@ -118,22 +118,6 @@ if __name__ == '__main__':
                             num_workers=opt.workers,
                             )
 
-    ### End of Chin-MONAI
-
-    # # -----  Transformation and Augmentation process for the data  -----
-    # min_pixel = int(opt.min_pixel * ((opt.patch_size[0] * opt.patch_size[1] * opt.patch_size[2]) / 100))
-    # trainTransforms = [
-    #             NiftiDataset.Resample(opt.new_resolution, opt.resample),
-    #             NiftiDataset.Augmentation(),
-    #             NiftiDataset.Padding((opt.patch_size[0], opt.patch_size[1], opt.patch_size[2])),
-    #             NiftiDataset.RandomCrop((opt.patch_size[0], opt.patch_size[1], opt.patch_size[2]), opt.drop_ratio, min_pixel),
-    #             ]
-    #
-    # train_set = NifitDataSet(opt.data_path, which_direction='AtoB', transforms=trainTransforms, shuffle_labels=True, train=True)
-    # print('lenght train list:', len(train_set))
-    # train_loader = DataLoader(train_set, batch_size=opt.batch_size, shuffle=True, num_workers=opt.workers, pin_memory=True)  # Here are then fed to the network with a defined batch size
-    # # -----------------------------------------------------
-
     model = create_model(opt)  # creation of the model
     model.setup(opt)
     if opt.epoch_count > 1:
@@ -185,10 +169,10 @@ if __name__ == '__main__':
             train_label = train_sample[0]['label']
             image_name = os.path.basename(train_sample[0]["image_meta_dict"]["filename_or_obj"][0])
             label_name = os.path.basename(train_sample[0]["label_meta_dict"]["filename_or_obj"][0])
-            train_affine = train_sample[0]['image_meta_dict']['affine'][0, ...]
-            label_affine = train_sample[0]['label_meta_dict']['affine'][0, ...]
+            # train_affine = train_sample[0]['image_meta_dict']['affine'][0, ...]
+            # label_affine = train_sample[0]['label_meta_dict']['affine'][0, ...]
 
-            print(f"Input shapes: {train_image.shape}, {train_label.shape}")
+            # print(f"Input shapes: {train_image.shape}, {train_label.shape}")
             # save_img(train_image.cpu().detach().squeeze().numpy(), train_affine, os.path.join(FIG_DIR, image_name))
             # save_img(train_label.cpu().detach().squeeze().numpy(), label_affine, os.path.join(FIG_DIR, label_name))
 
@@ -215,7 +199,26 @@ if __name__ == '__main__':
         if val_gap % 5 == 0:
             for val_sample in val_loader:
                 # Complete this
+                # Validation variables
+                val_image = val_sample[0]['image']
+                val_label = val_sample[0]['label']
+                image_name = os.path.basename(val_sample[0]["image_meta_dict"]["filename_or_obj"][0])
+                label_name = os.path.basename(val_sample[0]["label_meta_dict"]["filename_or_obj"][0])
+                val_affine = val_sample[0]['image_meta_dict']['affine'][0, ...]
+                label_affine = val_sample[0]['label_meta_dict']['affine'][0, ...]
 
+                model.set_input([val_image, train_label])
+                model.optimize_parameters()
+                del val_image, val_label
+
+                if total_steps % opt.print_freq == 0:
+                    losses = model.get_current_losses()
+                    t = (time.time() - iter_start_time) / opt.batch_size
+                    visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
+
+                if total_steps % opt.save_latest_freq == 0:
+                    print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
+                    model.save_networks('latest')
 
         print(f'End of epoch {epoch} / {opt.niter} \t Time Taken: {time.time() - epoch_start_time:.3f} sec')
         model.update_learning_rate()

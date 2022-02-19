@@ -3,7 +3,9 @@ import torch
 from collections import OrderedDict
 from models import networks3D
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # chin added 20220128
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # chin added 20220128
+
+
 class BaseModel():
 
     # modify parser to add command line options,
@@ -85,31 +87,32 @@ class BaseModel():
                 errors_ret[name] = float(getattr(self, 'loss_' + name))
         return errors_ret
 
-    # save models to the disk
-    def save_networks(self, which_epoch):
+    # Save models to the disk
+    def save_networks(self, which_epoch, gen_optimizer, disc_optimizer,
+                      current_loss, current_iter, current_gen_loss, current_disc_loss):
+        # Define ONE file for saving ALL state dicts
+        save_filename = f'{which_epoch}_checkpoint.pth'
+        current_state_dict = {'gen_optimizer_state_dict': self.optimizer_G.state_dict(),
+                              'disc_optimizer_state_dict': self.optimizer_D.state_dict(),
+                              'epoch': which_epoch,
+                              'loss': current_loss,
+                              'running_iter': current_iter,
+                              'batch_size': self.opt.batch_size,
+                              'patch_size': self.opt.patch_size,
+                              'gen_scaler': self.gen_scaler.state_dict(),
+                              'disc_scaler': self.disc_scaler.state_dict(),
+                              'gen_loss': current_gen_loss,
+                              'disc_loss': current_disc_loss}
         for name in self.model_names:
             if isinstance(name, str):
-                save_filename = '%s_net_%s.pth' % (which_epoch, name)
                 save_path = os.path.join(self.save_dir, save_filename)
                 net = getattr(self, 'net' + name)
-
-                ## old
-                #if len(self.gpu_ids) > 0 and torch.cuda.is_available():
-                #   torch.save(net.module.cpu().state_dict(), save_path)
-                #   net.cuda(self.gpu_ids[0])
-                #else:
-                #   torch.save(net.cpu().state_dict(), save_path)
-                ## end of old
-
-                # Chin
+                net.cpu()
                 if torch.cuda.is_available():
-                    #torch.save(net.model.cpu().state_dict(), save_path)
-                    #net.cuda(device)
-                    torch.save(net.cpu().state_dict(), save_path)
+                    current_state_dict[f'net_{name}_state_dict'] = net.state_dict()
                     net.cuda(device)
-                else:
-                    torch.save(net.cpu().state_dict(), save_path)
-                # End of Chin
+        # Save aggregated checkpoint file
+        torch.save(current_state_dict, save_path)
 
     def __patch_instance_norm_state_dict(self, state_dict, module, keys, i=0):
         key = keys[i]
@@ -121,31 +124,40 @@ class BaseModel():
                 if getattr(module, key) is None:
                     state_dict.pop('.'.join(keys))
             if module.__class__.__name__.startswith('InstanceNorm') and \
-               (key == 'num_batches_tracked'):
+                    (key == 'num_batches_tracked'):
                 state_dict.pop('.'.join(keys))
         else:
-            self.__patch_instance_norm_state_dict(state_dict, getattr(module, key), keys, i + 1) # Chin commented 2022.02.02
+            self.__patch_instance_norm_state_dict(state_dict, getattr(module, key), keys,
+                                                  i + 1)  # Chin commented 2022.02.02
 
     # load models from the disk
     def load_networks(self, which_epoch):
+        # Loading ONE torch file for all nets
+        load_filename = f'{which_epoch}_checkpoint.pth'
+        load_path = os.path.join(self.save_dir, load_filename)
+        print(f'Loading the model from {load_path}')
+        checkpoint = torch.load(load_path, map_location=self.device)
+        # Scalers and optimizers
+        self.optimizer_G.load_state_dict(checkpoint['gen_optimizer_state_dict'])
+        self.optimizer_D.load_state_dict(checkpoint['disc_optimizer_state_dict'])
+        self.gen_scaler.load_state_dict(checkpoint['gen_scaler'])
+        self.disc_scaler.load_state_dict(checkpoint['disc_scaler'])
+
+        # Networks loading
         for name in self.model_names:
             if isinstance(name, str):
-                load_filename = '%s_net_%s.pth' % (which_epoch, name)
-                load_path = os.path.join(self.save_dir, load_filename)
                 net = getattr(self, 'net' + name)
                 if isinstance(net, torch.nn.DataParallel):
                     net = net.module
-                print('loading the model from %s' % load_path)
                 # if you are using PyTorch newer than 0.4 (e.g., built from
                 # GitHub source), you can remove str() on self.device
-                state_dict = torch.load(load_path, map_location=str(self.device))
-                if hasattr(state_dict, '_metadata'):
-                    del state_dict._metadata
-
+                if hasattr(checkpoint[f"net_{name}_state_dict"], '_metadata'):
+                    del checkpoint[f"net_{name}_state_dict"]._metadata
                 # patch InstanceNorm checkpoints prior to 0.4
-                for key in list(state_dict.keys()):  # need to copy keys here because we mutate in loop
-                    self.__patch_instance_norm_state_dict(state_dict, net, key.split('.'))
-                net.load_state_dict(state_dict)
+                for key in list(checkpoint[f"net_{name}_state_dict"].keys()):  # need to copy keys here because we mutate in loop
+                    self.__patch_instance_norm_state_dict(checkpoint["model_state_dict"], net, key.split('.'))
+                net.load_state_dict(checkpoint[f"net_{name}_state_dict"])
+
 
     # print network information
     def print_networks(self, verbose):
