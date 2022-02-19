@@ -13,7 +13,7 @@ class BaseOptions():
         #parser.add_argument('--data_path', type=str, default='./Data_folder/train/', help='Train images path') # chin commented 20220128
         #parser.add_argument('--val_path', type=str, default='./Data_folder/test/', help='Validation images path') # chin commented 20220128
         parser.add_argument('--data_path', type=str, default='/data/Datasets/MRA-GAN/T1-T2', help='Train images path')
-        parser.add_argument('--val_path', type=str, default='/media/chayanin/Storage/chin/data2021/syn2agi_GAN/test_half/', help='Validation images path')
+        parser.add_argument('--val_path', type=str, default='/nfs/home/pedro/MRA-GAN', help='Validation images path')
         parser.add_argument('--batch_size', type=int, default=1, help='input batch size')
         #parser.add_argument('--patch_size', default=[128, 128, 64], help='Size of the patches extracted from the image') # chin commented 20220128
         #parser.add_argument('--patch_size', default=[128/2, 128/2, 64/2], help='Size of the patches extracted from the image')
@@ -119,8 +119,8 @@ class BaseOptions():
         #if len(opt.gpu_ids) > 0:
         #    torch.cuda.set_device(opt.gpu_ids[0])
         # end of # chin commented 2022.01.28
-        opt.gpu_ids = 0 # chin added 2022.01.28
-        torch.cuda.set_device(opt.gpu_ids) # chin added 2022.01.28
+        opt.gpu_ids = torch.device("cuda", 0)  # chin added 2022.01.28
+        torch.cuda.set_device(opt.gpu_ids)  # chin added 2022.01.28
 
         self.opt = opt
         return self.opt

@@ -1,11 +1,12 @@
 from options.base_options import BaseOptions
+import argparse
 
 
 class TrainOptions(BaseOptions):
     def initialize(self, parser):
         parser = BaseOptions.initialize(self, parser)
         parser.add_argument('--print_freq', type=int, default=100, help='frequency of showing training results on console')
-        parser.add_argument('--csv_file', type=int, default="/nfs/home/pedro/MRA-GAN/IXI-MRA-GAN-fold-csv.csv", help='Dataset csv containing fold information')
+        parser.add_argument('--csv_file', type=str, default="/nfs/home/pedro/MRA-GAN/IXI-MRA-GAN-fold-csv.csv", help='Dataset csv containing fold information')
         parser.add_argument('--save_latest_freq', type=int, default=1000, help='frequency of saving the latest results')
         parser.add_argument('--save_epoch_freq', type=int, default=50, help='frequency of saving checkpoints at the end of epochs')
         parser.add_argument('--continue_train', action='store_true', help='continue training: load the latest model')
@@ -18,7 +19,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--niter_decay', type=int, default=100, help='# of iter to linearly decay learning rate to zero')
         parser.add_argument('--beta1', type=float, default=0.5, help='momentum term of adam')
         parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate for adam')
-        parser.add_argument('--no_lsgan', action='store_false', help='do *not* use least square GAN, if false, use vanilla GAN')
+        parser.add_argument('--no_lsgan', type=self.str2bool, nargs='?', const=True, default=False, help='do *not* use least square GAN, if false, use vanilla GAN')
         parser.add_argument('--pool_size', type=int, default=50, help='the size of image buffer that stores previously generated images')
         parser.add_argument('--no_html', action='store_true', help='do not save intermediate training results to [opt.checkpoints_dir]/[opt.name]/web/')
         parser.add_argument('--lr_policy', type=str, default='lambda', help='learning rate policy: lambda|step|plateau|cosine')
@@ -26,5 +27,18 @@ class TrainOptions(BaseOptions):
 
         self.isTrain = True
         return parser
+
+    # Function for proper handling of bools in argparse
+    @staticmethod
+    def str2bool(v):
+        if isinstance(v, bool):
+            return v
+        if v.lower() in ('yes', 'true', 't', 'y', '1'):
+            return True
+        elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+            return False
+        else:
+            raise argparse.ArgumentTypeError('Boolean value expected.')
+
 
 

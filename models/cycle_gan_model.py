@@ -243,8 +243,8 @@ class CycleGANModel(BaseModel):
             self.backward_D_B()
         # Scale
         self.disc_scaler.scale(self.loss_D_A).backward()
-        self.dsic_scaler.step(self.optimizer_D)
+        self.disc_scaler.step(self.optimizer_D)
         self.disc_scaler.update()
         self.disc_scaler.scale(self.loss_D_B).backward()
-        self.dsic_scaler.step(self.optimizer_D)
+        self.disc_scaler.step(self.optimizer_D)
         self.disc_scaler.update()
