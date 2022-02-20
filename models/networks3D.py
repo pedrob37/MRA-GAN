@@ -436,7 +436,6 @@ class NoisyNLayerDiscriminator(nn.Module):
         kw = 4
         padw = 1
 
-
         class GaussianNoise(nn.Module):
             """Gaussian noise regularizer.
 
@@ -464,9 +463,8 @@ class NoisyNLayerDiscriminator(nn.Module):
                     x = x + sampled_noise
                 return x
 
-
-        sequence = [[GaussianNoise(sigma=0.2, is_relative_detach=True)]]
-        sequence += [[nn.Conv3d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw), nn.LeakyReLU(0.2, True)]]
+        sequence = [GaussianNoise(sigma=0.2, is_relative_detach=True)]
+        sequence += [nn.Conv3d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw), nn.LeakyReLU(0.2, True)]
 
         nf_mult = 1
         nf_mult_prev = 1
