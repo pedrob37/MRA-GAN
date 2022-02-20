@@ -21,7 +21,7 @@ class BaseModel():
         self.opt = opt
         self.gpu_ids = opt.gpu_ids
         self.isTrain = opt.isTrain
-        self.device = torch.device('cuda:{}'.format(self.gpu_ids[0])) if self.gpu_ids else torch.device('cpu')
+        self.device = torch.device('cuda:0') if self.gpu_ids else torch.device('cpu')
         self.save_dir = os.path.join(opt.checkpoints_dir, opt.name)
         self.loss_names = []
         self.model_names = []
@@ -38,7 +38,6 @@ class BaseModel():
     def setup(self, opt, parser=None):
         if self.isTrain:
             self.schedulers = [networks3D.get_scheduler(optimizer, opt) for optimizer in self.optimizers]
-
         if not self.isTrain or opt.continue_train:
             self.load_networks(opt.which_epoch)
         self.print_networks(opt.verbose)
@@ -49,6 +48,13 @@ class BaseModel():
             if isinstance(name, str):
                 net = getattr(self, 'net' + name)
                 net.eval()
+
+    # make models eval mode during test time
+    def train(self):
+        for name in self.model_names:
+            if isinstance(name, str):
+                net = getattr(self, 'net' + name)
+                net.train()
 
     # used in test time, wrapping `forward` in no_grad() so we don't save
     # intermediate steps for backprop
@@ -114,6 +120,16 @@ class BaseModel():
         # Save aggregated checkpoint file
         torch.save(current_state_dict, save_path)
 
+    def write_logs(self, training=True, step=None, current_writer=None):
+        if training:
+            current_writer.add_scalars('Loss/Adversarial',
+                                       {"Generator": self.loss_G.detach().item(),
+                                        "Discriminator": ((self.loss_D_A + self.loss_D_A) / 2).detach().item()}, step)
+        else:
+            current_writer.add_scalars('Loss/Val_Adversarial',
+                                       {"Generator": self.loss_G.detach().item(),
+                                        "Discriminator": ((self.loss_D_A + self.loss_D_A) / 2).detach().item()}, step)
+
     def __patch_instance_norm_state_dict(self, state_dict, module, keys, i=0):
         key = keys[i]
         print('keys', keys)
@@ -154,10 +170,10 @@ class BaseModel():
                 if hasattr(checkpoint[f"net_{name}_state_dict"], '_metadata'):
                     del checkpoint[f"net_{name}_state_dict"]._metadata
                 # patch InstanceNorm checkpoints prior to 0.4
-                for key in list(checkpoint[f"net_{name}_state_dict"].keys()):  # need to copy keys here because we mutate in loop
+                for key in list(checkpoint[
+                                    f"net_{name}_state_dict"].keys()):  # need to copy keys here because we mutate in loop
                     self.__patch_instance_norm_state_dict(checkpoint["model_state_dict"], net, key.split('.'))
                 net.load_state_dict(checkpoint[f"net_{name}_state_dict"])
-
 
     # print network information
     def print_networks(self, verbose):

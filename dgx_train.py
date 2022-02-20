@@ -12,6 +12,7 @@ from utils.utils import create_path, save_img
 # from test import inference
 import monai
 import pandas as pd
+from torch.utils.tensorboard import SummaryWriter
 from monai.transforms import (Compose,
                               LoadImaged,
                               AddChanneld,
@@ -77,10 +78,12 @@ if __name__ == '__main__':
                               ToTensord(keys=['image', 'label'])])
 
     ## Relevant job directories
-    CACHE_DIR = "/home/pedro/MRA-GAN/MRA-GAN/Cache"
-    FIG_DIR = "/home/pedro/MRA-GAN/MRA-GAN/Figures"
+    CACHE_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Cache/{opt.job_name}"
+    FIG_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Figures/{opt.job_name}"
+    LOG_DIR = f'/nfs/home/pedro/Outputs-MRA-GAN/Logs/{opt.job_name}'
     create_path(CACHE_DIR)
     create_path(FIG_DIR)
+    create_path(LOG_DIR)
 
     # Other variables
     val_gap = 5
@@ -94,6 +97,9 @@ if __name__ == '__main__':
         val_df = df[df.fold == val_fold]
         train_df.reset_index(drop=True, inplace=True)
         val_df.reset_index(drop=True, inplace=True)
+
+        # Writer
+        writer = SummaryWriter(log_dir=os.path.join(LOG_DIR, f'fold_{fold}'))
 
         # Print sizes
         print(f'The length of the training is {len(train_df)}')
@@ -143,6 +149,8 @@ if __name__ == '__main__':
 
         # Epochs
         for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
+            # Model to train mode after potential eval call when running validation
+            model.train()
             epoch_start_time = time.time()
             iter_data_time = time.time()
             epoch_iter = 0
@@ -175,11 +183,19 @@ if __name__ == '__main__':
                     losses = model.get_current_losses()
                     t = (time.time() - iter_start_time) / opt.batch_size
                     visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
+                    print(f"Losses are {losses}")
 
                 if total_steps % opt.save_latest_freq == 0:
                     print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
                     model.save_networks(epoch)
 
+                if total_steps % 250 == 0:
+                    model.write_logs(training=True,
+                                     step=total_steps,
+                                     current_writer=writer)
+                    # writer.add_scalars('Loss/Adversarial',
+                    #                    {"Generator": detach().item(),
+                    #                     "Discriminator": disc_total_loss.detach().item()}, total_steps)
                 iter_data_time = time.time()
 
             if epoch % opt.save_epoch_freq == 0:
@@ -187,28 +203,30 @@ if __name__ == '__main__':
                 model.save_networks(epoch)
 
             if epoch % val_gap == 0:
-                for val_sample in val_loader:
-                    # Complete this
-                    # Validation variables
-                    val_image = val_sample[0]['image']
-                    val_label = val_sample[0]['label']
-                    image_name = os.path.basename(val_sample[0]["image_meta_dict"]["filename_or_obj"][0])
-                    label_name = os.path.basename(val_sample[0]["label_meta_dict"]["filename_or_obj"][0])
-                    val_affine = val_sample[0]['image_meta_dict']['affine'][0, ...]
-                    label_affine = val_sample[0]['label_meta_dict']['affine'][0, ...]
+                model.eval()
+                with torch.no_grad():
+                    for val_sample in val_loader:
+                        # Complete this
+                        # Validation variables
+                        val_image = val_sample[0]['image']
+                        val_label = val_sample[0]['label']
+                        image_name = os.path.basename(val_sample[0]["image_meta_dict"]["filename_or_obj"][0])
+                        label_name = os.path.basename(val_sample[0]["label_meta_dict"]["filename_or_obj"][0])
+                        val_affine = val_sample[0]['image_meta_dict']['affine'][0, ...]
+                        label_affine = val_sample[0]['label_meta_dict']['affine'][0, ...]
 
-                    model.set_input([val_image, train_label])
-                    model.optimize_parameters()
-                    del val_image, val_label
+                        model.set_input([val_image, train_label])
+                        # model.optimize_parameters()
+                        del val_image, val_label
 
-                    if total_steps % opt.print_freq == 0:
-                        losses = model.get_current_losses()
-                        t = (time.time() - iter_start_time) / opt.batch_size
-                        visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
+                        if total_steps % opt.print_freq == 0:
+                            losses = model.get_current_losses()
+                            t = (time.time() - iter_start_time) / opt.batch_size
+                            visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
 
-                    if total_steps % opt.save_latest_freq == 0:
-                        print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
-                        model.save_networks('latest')
+                        if total_steps % opt.save_latest_freq == 0:
+                            print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
+                            model.save_networks('latest')
 
             print(f'End of epoch {epoch} / {opt.niter} \t Time Taken: {time.time() - epoch_start_time:.3f} sec')
             model.update_learning_rate()

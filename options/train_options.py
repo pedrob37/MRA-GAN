@@ -7,6 +7,7 @@ class TrainOptions(BaseOptions):
         parser = BaseOptions.initialize(self, parser)
         parser.add_argument('--print_freq', type=int, default=100, help='frequency of showing training results on console')
         parser.add_argument('--csv_file', type=str, default="/nfs/home/pedro/MRA-GAN/IXI-MRA-GAN-fold-csv.csv", help='Dataset csv containing fold information')
+        parser.add_argument('--job_name', type=str, default="", help='Job name')
         parser.add_argument('--save_latest_freq', type=int, default=1000, help='frequency of saving the latest results')
         parser.add_argument('--save_epoch_freq', type=int, default=50, help='frequency of saving checkpoints at the end of epochs')
         parser.add_argument('--continue_train', action='store_true', help='continue training: load the latest model')
