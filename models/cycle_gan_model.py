@@ -122,22 +122,21 @@ class CycleGANModel(BaseModel):
         # self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
     def forward(self):
-        with torch.cuda.amp.autocast(enabled=True):
-            ## old
-            #self.fake_B = self.netG_A(self.real_A)
-            #self.rec_A = self.netG_B(self.fake_B)
+        ## old
+        #self.fake_B = self.netG_A(self.real_A)
+        #self.rec_A = self.netG_B(self.fake_B)
 
-            #self.fake_A = self.netG_B(self.real_B)
-            #self.rec_B = self.netG_A(self.fake_A)
-            ## end of old
+        #self.fake_A = self.netG_B(self.real_B)
+        #self.rec_B = self.netG_A(self.fake_A)
+        ## end of old
 
-            # chin
-            self.fake_B = self.netG_A(self.real_A.to(device))
-            self.rec_A = self.netG_B(self.fake_B.to(device))
+        # chin
+        self.fake_B = self.netG_A(self.real_A.to(device))
+        self.rec_A = self.netG_B(self.fake_B.to(device))
 
-            self.fake_A = self.netG_B(self.real_B.to(device))
-            self.rec_B = self.netG_A(self.fake_A.to(device))
-            # end of chin
+        self.fake_A = self.netG_B(self.real_B.to(device))
+        self.rec_B = self.netG_A(self.fake_A.to(device))
+        # end of chin
 
     def backward_D_basic(self, netD, real, fake):
         # Real
@@ -162,7 +161,7 @@ class CycleGANModel(BaseModel):
         fake_A = self.fake_A_pool.query(self.fake_A.to(device))
         self.loss_D_B = self.backward_D_basic(self.netD_B.to(device), self.real_A.to(device), fake_A)
 
-    def backward_G(self, training=False):
+    def backward_G(self):
         lambda_idt = self.opt.lambda_identity
         lambda_A = self.opt.lambda_A
         lambda_B = self.opt.lambda_B
@@ -222,21 +221,20 @@ class CycleGANModel(BaseModel):
         # combined loss
         # self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B + self.loss_cor_coe_GA + self.loss_cor_coe_GB
-        if not training:
-            return self.loss_G
 
-    def optimize_parameters(self):
+    def optimize_parameters(self, training=True):
         with torch.cuda.amp.autocast(enabled=True):
             # forward
             self.forward()
             # G_A and G_B
             self.set_requires_grad([self.netD_A, self.netD_B], False)
             self.optimizer_G.zero_grad()
-            self.backward_G(training=True)
-        # Scale
-        self.gen_scaler.scale(self.loss_G).backward()
-        self.gen_scaler.step(self.optimizer_G)
-        self.gen_scaler.update()
+            self.backward_G()
+        if training:
+            # Scale
+            self.gen_scaler.scale(self.loss_G).backward()
+            self.gen_scaler.step(self.optimizer_G)
+            self.gen_scaler.update()
         # D_A and D_B
         with torch.cuda.amp.autocast(enabled=True):
             self.set_requires_grad([self.netD_A, self.netD_B], True)
@@ -244,9 +242,10 @@ class CycleGANModel(BaseModel):
             self.backward_D_A()
             self.backward_D_B()
         # Scale
-        self.disc_scaler.scale(self.loss_D_A).backward()
-        self.disc_scaler.step(self.optimizer_D)
-        self.disc_scaler.update()
-        self.disc_scaler.scale(self.loss_D_B).backward()
-        self.disc_scaler.step(self.optimizer_D)
-        self.disc_scaler.update()
+        if training:
+            self.disc_scaler.scale(self.loss_D_A).backward()
+            self.disc_scaler.step(self.optimizer_D)
+            self.disc_scaler.update()
+            self.disc_scaler.scale(self.loss_D_B).backward()
+            self.disc_scaler.step(self.optimizer_D)
+            self.disc_scaler.update()

@@ -94,21 +94,17 @@ class BaseModel():
         return errors_ret
 
     # Save models to the disk
-    def save_networks(self, which_epoch, gen_optimizer, disc_optimizer,
-                      current_loss, current_iter, current_gen_loss, current_disc_loss):
+    def save_networks(self, which_epoch, current_iter):
         # Define ONE file for saving ALL state dicts
-        save_filename = f'{which_epoch}_checkpoint.pth'
+        save_filename = f'epoch_{which_epoch}_checkpoint_iters_{current_iter}.pth'
         current_state_dict = {'gen_optimizer_state_dict': self.optimizer_G.state_dict(),
                               'disc_optimizer_state_dict': self.optimizer_D.state_dict(),
                               'epoch': which_epoch,
-                              'loss': current_loss,
                               'running_iter': current_iter,
                               'batch_size': self.opt.batch_size,
                               'patch_size': self.opt.patch_size,
                               'gen_scaler': self.gen_scaler.state_dict(),
-                              'disc_scaler': self.disc_scaler.state_dict(),
-                              'gen_loss': current_gen_loss,
-                              'disc_loss': current_disc_loss}
+                              'disc_scaler': self.disc_scaler.state_dict()}
         for name in self.model_names:
             if isinstance(name, str):
                 save_path = os.path.join(self.save_dir, save_filename)
@@ -121,14 +117,19 @@ class BaseModel():
         torch.save(current_state_dict, save_path)
 
     def write_logs(self, training=True, step=None, current_writer=None):
+        losses = self.get_current_losses()
         if training:
             current_writer.add_scalars('Loss/Adversarial',
-                                       {"Generator": self.loss_G.detach().item(),
-                                        "Discriminator": ((self.loss_D_A + self.loss_D_A) / 2).detach().item()}, step)
+                                       {"Generator_A": losses["G_A"],
+                                        "Generator_B": losses["G_B"],
+                                        "Discriminator_A": losses["D_A"],
+                                        "Discriminator_B": losses["D_B"]}, step)
         else:
             current_writer.add_scalars('Loss/Val_Adversarial',
-                                       {"Generator": self.loss_G.detach().item(),
-                                        "Discriminator": ((self.loss_D_A + self.loss_D_A) / 2).detach().item()}, step)
+                                       {"Generator_A": losses["G_A"],
+                                        "Generator_B": losses["G_B"],
+                                        "Discriminator_A": losses["D_A"],
+                                        "Discriminator_B": losses["D_B"]}, step)
 
     def __patch_instance_norm_state_dict(self, state_dict, module, keys, i=0):
         key = keys[i]

@@ -176,7 +176,7 @@ if __name__ == '__main__':
 
                 # Pass inputs to model and optimise
                 model.set_input([train_image, train_label])
-                model.optimize_parameters()
+                model.optimize_parameters(training=True)
                 del train_image, train_label
 
                 if total_steps % opt.print_freq == 0:
@@ -186,21 +186,19 @@ if __name__ == '__main__':
                     print(f"Losses are {losses}")
 
                 if total_steps % opt.save_latest_freq == 0:
+                    losses = model.get_current_losses()
                     print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
-                    model.save_networks(epoch)
+                    model.save_networks(epoch, current_iter=total_steps)
 
                 if total_steps % 250 == 0:
                     model.write_logs(training=True,
                                      step=total_steps,
                                      current_writer=writer)
-                    # writer.add_scalars('Loss/Adversarial',
-                    #                    {"Generator": detach().item(),
-                    #                     "Discriminator": disc_total_loss.detach().item()}, total_steps)
                 iter_data_time = time.time()
 
             if epoch % opt.save_epoch_freq == 0:
-                model.save_networks('latest')
-                model.save_networks(epoch)
+                # model.save_networks('latest')
+                model.save_networks(epoch, current_iter=total_steps)
 
             if epoch % val_gap == 0:
                 model.eval()
@@ -216,7 +214,7 @@ if __name__ == '__main__':
                         label_affine = val_sample[0]['label_meta_dict']['affine'][0, ...]
 
                         model.set_input([val_image, train_label])
-                        # model.optimize_parameters()
+                        model.optimize_parameters(training=False)
                         del val_image, val_label
 
                         if total_steps % opt.print_freq == 0:
@@ -227,6 +225,11 @@ if __name__ == '__main__':
                         if total_steps % opt.save_latest_freq == 0:
                             print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
                             model.save_networks('latest')
+
+                    # Log validation performance
+                    model.write_logs(training=False,
+                                     step=total_steps,
+                                     current_writer=writer)
 
             print(f'End of epoch {epoch} / {opt.niter} \t Time Taken: {time.time() - epoch_start_time:.3f} sec')
             model.update_learning_rate()
