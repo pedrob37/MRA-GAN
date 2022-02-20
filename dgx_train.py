@@ -56,24 +56,24 @@ if __name__ == '__main__':
     train_transforms = Compose([LoadImaged(keys=['image', 'label']),
                                 AddChanneld(keys=['image', 'label']),
                                 RandSpatialCropSamplesd(keys=["image", "label"],
-                                                        roi_size=opt.patch_size,
+                                                        roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                         random_center=True,
                                                         random_size=False,
                                                         num_samples=1),
-                                SpatialPadd(keys=["image", "label"],
-                                            spatial_size=opt.patch_size),
+                                # SpatialPadd(keys=["image", "label"],
+                                #             spatial_size=opt.patch_size),
                                 NormalizeIntensityd(keys=['image'], channel_wise=True),
                                 ToTensord(keys=['image', 'label'])])
 
     val_transforms = Compose([LoadImaged(keys=['image', 'label']),
                               AddChanneld(keys=['image', 'label']),
                               RandSpatialCropSamplesd(keys=["image", "label"],
-                                                      roi_size=opt.patch_size,
+                                                      roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                       random_center=True,
                                                       random_size=False,
                                                       num_samples=1),
-                              SpatialPadd(keys=["image", "label"],
-                                          spatial_size=opt.patch_size),
+                              # SpatialPadd(keys=["image", "label"],
+                              #             spatial_size=opt.patch_size),
                               NormalizeIntensityd(keys=['image'], channel_wise=True),
                               ToTensord(keys=['image', 'label'])])
 
@@ -183,7 +183,7 @@ if __name__ == '__main__':
                     losses = model.get_current_losses()
                     t = (time.time() - iter_start_time) / opt.batch_size
                     visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
-                    print(f"Losses are {losses}")
+                    # print(f"Losses are {losses}")
 
                 if total_steps % opt.save_latest_freq == 0:
                     losses = model.get_current_losses()
