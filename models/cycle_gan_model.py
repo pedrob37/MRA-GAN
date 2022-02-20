@@ -1,6 +1,7 @@
 import torch
 import itertools
 import random
+import numpy as np
 from .base_model import BaseModel
 from . import networks3D
 
@@ -138,10 +139,14 @@ class CycleGANModel(BaseModel):
         self.rec_B = self.netG_A(self.fake_A.to(device))
         # end of chin
 
-    def backward_D_basic(self, netD, real, fake):
+    def backward_D_basic(self, netD, real, fake, real_label_flip_chance=0.25):
         # Real
         pred_real = netD(real)
-        loss_D_real = self.criterionGAN(pred_real, True)
+        flip_labels = np.random.uniform(0, 1)
+        if flip_labels < real_label_flip_chance:
+            loss_D_real = self.criterionGAN(pred_real, False)
+        if flip_labels < real_label_flip_chance:
+            loss_D_real = self.criterionGAN(pred_real, True)
         # Fake
         pred_fake = netD(fake.detach())
         loss_D_fake = self.criterionGAN(pred_fake, False)

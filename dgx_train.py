@@ -213,7 +213,7 @@ if __name__ == '__main__':
                         val_affine = val_sample[0]['image_meta_dict']['affine'][0, ...]
                         label_affine = val_sample[0]['label_meta_dict']['affine'][0, ...]
 
-                        model.set_input([val_image, train_label])
+                        model.set_input([val_image, val_label])
                         model.optimize_parameters(training=False)
                         del val_image, val_label
 

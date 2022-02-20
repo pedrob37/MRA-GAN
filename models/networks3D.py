@@ -108,9 +108,9 @@ def define_D(input_nc, ndf, netD,
     norm_layer = get_norm_layer(norm_type=norm)
 
     if netD == 'basic':
-        net = NLayerDiscriminator(input_nc, ndf, n_layers=3, norm_layer=norm_layer, use_sigmoid=use_sigmoid)
+        net = NoisyNLayerDiscriminator(input_nc, ndf, n_layers=3, norm_layer=norm_layer, use_sigmoid=use_sigmoid)
     elif netD == 'n_layers':
-        net = NLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer, use_sigmoid=use_sigmoid)
+        net = NoisyNLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer, use_sigmoid=use_sigmoid)
     elif netD == 'pixel':
         net = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer, use_sigmoid=use_sigmoid)
     else:
@@ -392,6 +392,81 @@ class NLayerDiscriminator(nn.Module):
             nn.Conv3d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw),
             nn.LeakyReLU(0.2, True)
         ]
+
+        nf_mult = 1
+        nf_mult_prev = 1
+        for n in range(1, n_layers):
+            nf_mult_prev = nf_mult
+            nf_mult = min(2**n, 8)
+            sequence += [
+                nn.Conv3d(ndf * nf_mult_prev, ndf * nf_mult,
+                          kernel_size=kw, stride=2, padding=padw, bias=use_bias),
+                norm_layer(ndf * nf_mult),
+                nn.LeakyReLU(0.2, True)
+            ]
+
+        nf_mult_prev = nf_mult
+        nf_mult = min(2**n_layers, 8)
+        sequence += [
+            nn.Conv3d(ndf * nf_mult_prev, ndf * nf_mult,
+                      kernel_size=kw, stride=1, padding=padw, bias=use_bias),
+            norm_layer(ndf * nf_mult),
+            nn.LeakyReLU(0.2, True)
+        ]
+
+        sequence += [nn.Conv3d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)]
+
+        if use_sigmoid:
+            sequence += [nn.Sigmoid()]
+
+        self.model = nn.Sequential(*sequence)
+
+    def forward(self, input):
+        return self.model(input)
+
+
+class NoisyNLayerDiscriminator(nn.Module):
+    def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm3d, use_sigmoid=False):
+        super(NoisyNLayerDiscriminator, self).__init__()
+        if type(norm_layer) == functools.partial:
+            use_bias = norm_layer.func == nn.InstanceNorm3d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm3d
+
+        kw = 4
+        padw = 1
+
+
+        class GaussianNoise(nn.Module):
+            """Gaussian noise regularizer.
+
+            Args:
+                sigma (float, optional): relative standard deviation used to generate the
+                    noise. Relative means that it will be multiplied by the magnitude of
+                    the value your are adding the noise to. This means that sigma can be
+                    the same regardless of the scale of the vector.
+                is_relative_detach (bool, optional): whether to detach the variable before
+                    computing the scale of the noise. If `False` then the scale of the noise
+                    won't be seen as a constant but something to optimize: this will bias the
+                    network to generate vectors with smaller values.
+            """
+
+            def __init__(self, sigma=0.1, is_relative_detach=True):
+                super().__init__()
+                self.sigma = sigma
+                self.is_relative_detach = is_relative_detach
+                self.noise = torch.tensor(0).float().cuda()
+
+            def forward(self, x):
+                if self.training and self.sigma != 0:
+                    scale = self.sigma * x.detach() if self.is_relative_detach else self.sigma * x
+                    sampled_noise = self.noise.repeat(*x.size()).normal_() * scale
+                    x = x + sampled_noise
+                return x
+
+
+        sequence = [[GaussianNoise(sigma=0.2, is_relative_detach=True)]]
+        sequence += [[nn.Conv3d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw), nn.LeakyReLU(0.2, True)]]
 
         nf_mult = 1
         nf_mult_prev = 1
