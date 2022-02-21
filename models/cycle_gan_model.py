@@ -5,7 +5,9 @@ import numpy as np
 from .base_model import BaseModel
 from . import networks3D
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # chin added 2022.01.28
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # chin added 2022.01.28
+
+
 class ImagePool():
     def __init__(self, pool_size):
         self.pool_size = pool_size
@@ -48,10 +50,11 @@ class CycleGANModel(BaseModel):
             parser.add_argument('--lambda_A', type=float, default=10.0, help='weight for cycle loss (A -> B -> A)')
             parser.add_argument('--lambda_B', type=float, default=10.0,
                                 help='weight for cycle loss (B -> A -> B)')
-            parser.add_argument('--lambda_identity', type=float, default=0.5, help='use identity mapping. Setting lambda_identity other than 0 has an effect of '
-                                                                                   'scaling the weight of the identity mapping loss. For example, if the weight of the'
-                                                                                   ' identity loss should be 10 times smaller than the weight of the reconstruction loss, '
-                                                                                   'please set lambda_identity = 0.1')
+            parser.add_argument('--lambda_identity', type=float, default=0.5,
+                                help='use identity mapping. Setting lambda_identity other than 0 has an effect of '
+                                     'scaling the weight of the identity mapping loss. For example, if the weight of the'
+                                     ' identity loss should be 10 times smaller than the weight of the reconstruction loss, '
+                                     'please set lambda_identity = 0.1')
             '''
             adjust the weight of correlation coefficient loss
             '''
@@ -85,17 +88,20 @@ class CycleGANModel(BaseModel):
         # load/define networks
         # The naming conversion is different from those used in the paper
         # Code (paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
-        self.netG_A = networks3D.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,   # nc number channels
-                                        not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+        self.netG_A = networks3D.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
+                                          # nc number channels
+                                          not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
         self.netG_B = networks3D.define_G(opt.output_nc, opt.input_nc, opt.ngf, opt.netG, opt.norm,
-                                        not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+                                          not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
             self.netD_A = networks3D.define_D(opt.output_nc, opt.ndf, opt.netD,
-                                            opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain, self.gpu_ids)
+                                              opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain,
+                                              self.gpu_ids)
             self.netD_B = networks3D.define_D(opt.input_nc, opt.ndf, opt.netD,
-                                            opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain, self.gpu_ids)
+                                              opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain,
+                                              self.gpu_ids)
 
         if self.isTrain:
             self.fake_A_pool = ImagePool(opt.pool_size)
@@ -124,11 +130,11 @@ class CycleGANModel(BaseModel):
 
     def forward(self):
         ## old
-        #self.fake_B = self.netG_A(self.real_A)
-        #self.rec_A = self.netG_B(self.fake_B)
+        # self.fake_B = self.netG_A(self.real_A)
+        # self.rec_A = self.netG_B(self.fake_B)
 
-        #self.fake_A = self.netG_B(self.real_B)
-        #self.rec_B = self.netG_A(self.fake_A)
+        # self.fake_A = self.netG_B(self.real_B)
+        # self.rec_B = self.netG_A(self.fake_A)
         ## end of old
 
         # chin
@@ -138,6 +144,22 @@ class CycleGANModel(BaseModel):
         self.fake_A = self.netG_B(self.real_B.to(device))
         self.rec_B = self.netG_A(self.fake_A.to(device))
         # end of chin
+
+    def test_forward(self, overlap=0.3):
+        from monai.inferers import sliding_window_inference
+        fake_B = sliding_window_inference(self.real_A.to(device), 160, 1, self.netG_A,
+                                          overlap=overlap,
+                                          mode='gaussian')
+        rec_A = sliding_window_inference(self.fake_B.to(device), 160, 1, self.netG_B,
+                                         overlap=overlap,
+                                         mode='gaussian')
+        fake_A = sliding_window_inference(self.real_B.to(device), 160, 1, self.netG_B,
+                                          overlap=overlap,
+                                          mode='gaussian')
+        rec_B = sliding_window_inference(self.fake_A.to(device), 160, 1, self.netG_A,
+                                         overlap=overlap,
+                                         mode='gaussian')
+        return fake_B, rec_A, fake_A, rec_B
 
     def backward_D_basic(self, netD, real, fake, real_label_flip_chance=0.25):
         # Real
@@ -155,14 +177,14 @@ class CycleGANModel(BaseModel):
         return loss_D
 
     def backward_D_A(self):
-        #fake_B = self.fake_B_pool.query(self.fake_B)
-        #self.loss_D_A = self.backward_D_basic(self.netD_A, self.real_B, fake_B)
+        # fake_B = self.fake_B_pool.query(self.fake_B)
+        # self.loss_D_A = self.backward_D_basic(self.netD_A, self.real_B, fake_B)
         fake_B = self.fake_B_pool.query(self.fake_B.to(device))
         self.loss_D_A = self.backward_D_basic(self.netD_A.to(device), self.real_B.to(device), fake_B)
 
     def backward_D_B(self):
-        #fake_A = self.fake_A_pool.query(self.fake_A)
-        #self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
+        # fake_A = self.fake_A_pool.query(self.fake_A)
+        # self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
         fake_A = self.fake_A_pool.query(self.fake_A.to(device))
         self.loss_D_B = self.backward_D_basic(self.netD_B.to(device), self.real_A.to(device), fake_A)
 
@@ -180,11 +202,11 @@ class CycleGANModel(BaseModel):
         if lambda_idt > 0:
             ## old
             ## G_A should be identity if real_B is fed.
-            #self.idt_A = self.netG_A(self.real_B)
-            #self.loss_idt_A = self.criterionIdt(self.idt_A, self.real_B) * lambda_B * lambda_idt
+            # self.idt_A = self.netG_A(self.real_B)
+            # self.loss_idt_A = self.criterionIdt(self.idt_A, self.real_B) * lambda_B * lambda_idt
             ## G_B should be identity if real_A is fed.
-            #self.idt_B = self.netG_B(self.real_A)
-            #self.loss_idt_B = self.criterionIdt(self.idt_B, self.real_A) * lambda_A * lambda_idt
+            # self.idt_B = self.netG_B(self.real_A)
+            # self.loss_idt_B = self.criterionIdt(self.idt_B, self.real_A) * lambda_A * lambda_idt
             ## end of old
 
             # Chin
@@ -200,28 +222,32 @@ class CycleGANModel(BaseModel):
             self.loss_idt_B = 0
 
         # GAN loss D_A(G_A(A))
-        #self.loss_G_A = self.criterionGAN(self.netD_A(self.fake_B), True) # chin commented 2022.01.28
-        self.loss_G_A = self.criterionGAN(self.netD_A(self.fake_B.to(device)), True) # chin added 2022.01.28
+        # self.loss_G_A = self.criterionGAN(self.netD_A(self.fake_B), True) # chin commented 2022.01.28
+        self.loss_G_A = self.criterionGAN(self.netD_A(self.fake_B.to(device)), True)  # chin added 2022.01.28
 
         # GAN loss D_B(G_B(B))
-        #self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True) # chin commented 2022.01.28
-        self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A.to(device)), True) # chin added 2022.01.28
+        # self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True) # chin commented 2022.01.28
+        self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A.to(device)), True)  # chin added 2022.01.28
 
         # Forward cycle loss
-        #self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A # chin commented 2022.01.28
-        self.loss_cycle_A = self.criterionCycle(self.rec_A.to(device), self.real_A.to(device)) * lambda_A # chin added 2022.01.28
+        # self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A # chin commented 2022.01.28
+        self.loss_cycle_A = self.criterionCycle(self.rec_A.to(device),
+                                                self.real_A.to(device)) * lambda_A  # chin added 2022.01.28
 
         # Backward cycle loss
-        #self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B # chin commented 2022.01.28
-        self.loss_cycle_B = self.criterionCycle(self.rec_B.to(device), self.real_B.to(device)) * lambda_B # chin added 2022.01.28
+        # self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B # chin commented 2022.01.28
+        self.loss_cycle_B = self.criterionCycle(self.rec_B.to(device),
+                                                self.real_B.to(device)) * lambda_B  # chin added 2022.01.28
 
         '''
         self.cor_coeLoss
         '''
-        #self.loss_cor_coe_GA = networks3D.Cor_CoeLoss(self.fake_B,self.real_A) * lambda_co_A  # fake ct & real mr; Evaluate the Generator of ct(G_A) # chin commented 2022.01.28
-        #self.loss_cor_coe_GB = networks3D.Cor_CoeLoss(self.fake_A,self.real_B) * lambda_co_B  # fake mr & real ct; Evaluate the Generator of mr(G_B) # chin commented 2022.01.28
-        self.loss_cor_coe_GA = networks3D.Cor_CoeLoss(self.fake_B.to(device),self.real_A.to(device)) * lambda_co_A  # fake ct & real mr; Evaluate the Generator of ct(G_A)  #chin added 2022.01.28
-        self.loss_cor_coe_GB = networks3D.Cor_CoeLoss(self.fake_A.to(device),self.real_B.to(device)) * lambda_co_B  # fake mr & real ct; Evaluate the Generator of mr(G_B)  #chin added 2022.01.28
+        # self.loss_cor_coe_GA = networks3D.Cor_CoeLoss(self.fake_B,self.real_A) * lambda_co_A  # fake ct & real mr; Evaluate the Generator of ct(G_A) # chin commented 2022.01.28
+        # self.loss_cor_coe_GB = networks3D.Cor_CoeLoss(self.fake_A,self.real_B) * lambda_co_B  # fake mr & real ct; Evaluate the Generator of mr(G_B) # chin commented 2022.01.28
+        self.loss_cor_coe_GA = networks3D.Cor_CoeLoss(self.fake_B.to(device), self.real_A.to(
+            device)) * lambda_co_A  # fake ct & real mr; Evaluate the Generator of ct(G_A)  #chin added 2022.01.28
+        self.loss_cor_coe_GB = networks3D.Cor_CoeLoss(self.fake_A.to(device), self.real_B.to(
+            device)) * lambda_co_B  # fake mr & real ct; Evaluate the Generator of mr(G_B)  #chin added 2022.01.28
 
         # combined loss
         # self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B

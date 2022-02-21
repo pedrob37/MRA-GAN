@@ -1,5 +1,8 @@
 import os
 import sys
+
+import torch
+
 from utils.NiftiDataset import *
 import utils.NiftiDataset as NiftiDataset
 from torch.utils.data import DataLoader
@@ -53,52 +56,71 @@ if __name__ == '__main__':
 
     # Augmentations
     # Transforms
-    train_transforms = Compose([LoadImaged(keys=['image', 'label']),
-                                AddChanneld(keys=['image', 'label']),
-                                RandAffined(keys=["image", "label"],
-                                            scale_range=(0.1, 0.1, 0.1),
-                                            rotate_range=(0.25, 0.25, 0.25),
-                                            translate_range=(20, 20, 20),
-                                            mode=("nearest", "bilinear"),
-                                            as_tensor_output=False, prob=1.0,
-                                            padding_mode=('zeros', 'zeros')),
-                                RandGaussianSmoothd(keys=["image"], prob=0.25,  # 0.2
-                                                    sigma_x=(0.25, 0.3),
-                                                    sigma_y=(0.25, 0.3),
-                                                    sigma_z=(0.25, 0.3)),
-                                RandBiasFieldd(keys=["image"], degree=3, coeff_range=(0.1, 0.25),
-                                               prob=0.25),  # Odd behaviour...
-                                NormalizeIntensityd(keys=['image'], channel_wise=True),
-                                RandGaussianNoiseD(keys=["image"], std=0.2, prob=0.5),
-                                RandSpatialCropSamplesd(keys=["image", "label"],
-                                                        roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
-                                                        random_center=True,
-                                                        random_size=False,
-                                                        num_samples=1),
-                                # SpatialPadd(keys=["image", "label"],
-                                #             spatial_size=opt.patch_size),
-                                NormalizeIntensityd(keys=['image'], channel_wise=True),
-                                ToTensord(keys=['image', 'label'])])
+    if opt.phase == "train":
+        train_transforms = Compose([LoadImaged(keys=['image', 'label']),
+                                    AddChanneld(keys=['image', 'label']),
+                                    RandAffined(keys=["image", "label"],
+                                                scale_range=(0.1, 0.1, 0.1),
+                                                rotate_range=(0.25, 0.25, 0.25),
+                                                translate_range=(20, 20, 20),
+                                                mode=("nearest", "bilinear"),
+                                                as_tensor_output=False, prob=1.0,
+                                                padding_mode=('zeros', 'zeros')),
+                                    RandGaussianSmoothd(keys=["image"], prob=0.25,  # 0.2
+                                                        sigma_x=(0.25, 0.3),
+                                                        sigma_y=(0.25, 0.3),
+                                                        sigma_z=(0.25, 0.3)),
+                                    RandBiasFieldd(keys=["image"], degree=3, coeff_range=(0.1, 0.25),
+                                                   prob=0.25),  # Odd behaviour...
+                                    NormalizeIntensityd(keys=['image'], channel_wise=True),
+                                    RandGaussianNoiseD(keys=["image"], std=0.2, prob=0.5),
+                                    RandSpatialCropSamplesd(keys=["image", "label"],
+                                                            roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                            random_center=True,
+                                                            random_size=False,
+                                                            num_samples=1),
+                                    # SpatialPadd(keys=["image", "label"],
+                                    #             spatial_size=opt.patch_size),
+                                    NormalizeIntensityd(keys=['image'], channel_wise=True),
+                                    ToTensord(keys=['image', 'label'])])
 
-    val_transforms = Compose([LoadImaged(keys=['image', 'label']),
-                              AddChanneld(keys=['image', 'label']),
-                              RandSpatialCropSamplesd(keys=["image", "label"],
-                                                      roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
-                                                      random_center=True,
-                                                      random_size=False,
-                                                      num_samples=1),
-                              # SpatialPadd(keys=["image", "label"],
-                              #             spatial_size=opt.patch_size),
-                              NormalizeIntensityd(keys=['image'], channel_wise=True),
-                              ToTensord(keys=['image', 'label'])])
+        val_transforms = Compose([LoadImaged(keys=['image', 'label']),
+                                  AddChanneld(keys=['image', 'label']),
+                                  RandSpatialCropSamplesd(keys=["image", "label"],
+                                                          roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                          random_center=True,
+                                                          random_size=False,
+                                                          num_samples=1),
+                                  # SpatialPadd(keys=["image", "label"],
+                                  #             spatial_size=opt.patch_size),
+                                  NormalizeIntensityd(keys=['image'], channel_wise=True),
+                                  ToTensord(keys=['image', 'label'])])
+    elif opt.phase == "test":
+        from monai.inferers import sliding_window_inference
+        inf_transforms = Compose([LoadImaged(keys=['image', 'label']),
+                                  AddChanneld(keys=['image', 'label']),
+                                  # RandSpatialCropSamplesd(keys=["image", "label"],
+                                  #                         roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                  #                         random_center=True,
+                                  #                         random_size=False,
+                                  #                         num_samples=1),
+                                  # SpatialPadd(keys=["image", "label"],
+                                  #             spatial_size=opt.patch_size),
+                                  NormalizeIntensityd(keys=['image'], channel_wise=True),
+                                  ToTensord(keys=['image', 'label'])])
 
     ## Relevant job directories
     CACHE_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Cache/{opt.job_name}"
     FIG_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Figures/{opt.job_name}"
     LOG_DIR = f'/nfs/home/pedro/Outputs-MRA-GAN/Logs/{opt.job_name}'
+    MODELS_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Models/{opt.job_name}"
     create_path(CACHE_DIR)
     create_path(FIG_DIR)
     create_path(LOG_DIR)
+    create_path(MODELS_DIR)
+
+    # Re-assign checkpoints directory
+    opt.checkpoints_dir = MODELS_DIR
 
     # Other variables
     val_gap = 5
@@ -126,125 +148,167 @@ if __name__ == '__main__':
                            in zip(train_df.Filename, train_df.Label_Filename)]
         val_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
                          in zip(val_df.Filename, val_df.Label_Filename)]
+        inf_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
+                         in zip(inf_df.Filename, inf_df.Label_Filename)]
 
         # Basic length checks
         assert len(train_df.Filename) == len(train_df.Label_Filename)
         assert len(val_df.Filename) == len(val_df.Label_Filename)
 
-        # Training + validation loaders
-        train_ds = monai.data.PersistentDataset(data=train_data_dict,
-                                                transform=train_transforms,
-                                                cache_dir=CACHE_DIR
-                                                )
+        if opt.phase == "train":
+            # Training + validation loaders
+            train_ds = monai.data.PersistentDataset(data=train_data_dict,
+                                                    transform=train_transforms,
+                                                    cache_dir=CACHE_DIR
+                                                    )
+    
+            train_loader = DataLoader(dataset=train_ds,
+                                      batch_size=opt.batch_size,
+                                      shuffle=True,
+                                      num_workers=opt.workers,
+                                      )
+    
+            val_ds = monai.data.PersistentDataset(data=val_data_dict,
+                                                  transform=val_transforms,
+                                                  cache_dir=CACHE_DIR
+                                                  )
+    
+            val_loader = DataLoader(dataset=val_ds,
+                                    batch_size=opt.batch_size,
+                                    shuffle=True,
+                                    num_workers=opt.workers,
+                                    )
+        elif opt.phase == "test":
+            inf_ds = monai.data.Dataset(data=inf_data_dict,
+                                        transform=inf_transforms,
+                                        )
 
-        train_loader = DataLoader(dataset=train_ds,
-                                  batch_size=opt.batch_size,
-                                  shuffle=True,
-                                  num_workers=opt.workers,
-                                  )
-
-        val_ds = monai.data.PersistentDataset(data=val_data_dict,
-                                              transform=val_transforms,
-                                              cache_dir=CACHE_DIR
-                                              )
-
-        val_loader = DataLoader(dataset=val_ds,
-                                batch_size=opt.batch_size,
-                                shuffle=True,
-                                num_workers=opt.workers,
-                                )
+            inf_loader = DataLoader(dataset=inf_ds,
+                                    batch_size=1,
+                                    shuffle=True,
+                                    num_workers=opt.workers,
+                                    )
 
         # Model creation
         model = create_model(opt)
         model.setup(opt)
+
+        # Model loading
+        file_list = os.listdir(path=MODELS_DIR)
+        num_files = len(file_list)
+        print(f'The number of files is {num_files}')
+
         if opt.epoch_count > 1:
             model.load_networks(opt.epoch_count)
         visualizer = Visualizer(opt)
         total_steps = 0
 
-        # Epochs
-        for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
-            # Model to train mode after potential eval call when running validation
-            model.train()
-            epoch_start_time = time.time()
-            iter_data_time = time.time()
-            epoch_iter = 0
-
-            # Iterations
-            for i, train_sample in enumerate(train_loader):
-                iter_start_time = time.time()
-                if total_steps % opt.print_freq == 0:
-                    t_data = iter_start_time - iter_data_time
-                visualizer.reset()
-
-                # Training variables: Global
-                total_steps += opt.batch_size
-                epoch_iter += opt.batch_size
-
-                # Iteration-specific data
-                train_image = train_sample[0]['image']
-                train_label = train_sample[0]['label']
-
-                # Names (Not needed for now)
-                image_name = os.path.basename(train_sample[0]["image_meta_dict"]["filename_or_obj"][0])
-                label_name = os.path.basename(train_sample[0]["label_meta_dict"]["filename_or_obj"][0])
-
-                # Pass inputs to model and optimise
-                model.set_input([train_image, train_label])
-                model.optimize_parameters(training=True)
-                del train_image, train_label
-
-                if total_steps % opt.print_freq == 0:
-                    losses = model.get_current_losses()
-                    t = (time.time() - iter_start_time) / opt.batch_size
-                    visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
-                    # print(f"Losses are {losses}")
-
-                if total_steps % opt.save_latest_freq == 0:
-                    losses = model.get_current_losses()
-                    print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
-                    model.save_networks(epoch, current_iter=total_steps)
-
-                if total_steps % 250 == 0:
-                    model.write_logs(training=True,
-                                     step=total_steps,
-                                     current_writer=writer)
+        if opt.phase == "train":
+            # Epochs
+            for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
+                # Model to train mode after potential eval call when running validation
+                model.train()
+                epoch_start_time = time.time()
                 iter_data_time = time.time()
+                epoch_iter = 0
 
-            if epoch % opt.save_epoch_freq == 0:
-                # model.save_networks('latest')
-                model.save_networks(epoch, current_iter=total_steps)
+                # Iterations
+                for i, train_sample in enumerate(train_loader):
+                    iter_start_time = time.time()
+                    if total_steps % opt.print_freq == 0:
+                        t_data = iter_start_time - iter_data_time
+                    visualizer.reset()
 
-            if epoch % val_gap == 0:
-                model.eval()
-                with torch.no_grad():
-                    for val_sample in val_loader:
-                        # Complete this
-                        # Validation variables
-                        val_image = val_sample[0]['image']
-                        val_label = val_sample[0]['label']
-                        image_name = os.path.basename(val_sample[0]["image_meta_dict"]["filename_or_obj"][0])
-                        label_name = os.path.basename(val_sample[0]["label_meta_dict"]["filename_or_obj"][0])
-                        val_affine = val_sample[0]['image_meta_dict']['affine'][0, ...]
-                        label_affine = val_sample[0]['label_meta_dict']['affine'][0, ...]
+                    # Training variables: Global
+                    total_steps += opt.batch_size
+                    epoch_iter += opt.batch_size
 
-                        model.set_input([val_image, val_label])
-                        model.optimize_parameters(training=False)
-                        del val_image, val_label
+                    # Iteration-specific data
+                    train_image = train_sample[0]['image']
+                    train_label = train_sample[0]['label']
 
-                        if total_steps % opt.print_freq == 0:
-                            losses = model.get_current_losses()
-                            t = (time.time() - iter_start_time) / opt.batch_size
-                            visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
+                    # Names (Not needed for now)
+                    image_name = os.path.basename(train_sample[0]["image_meta_dict"]["filename_or_obj"][0])
+                    label_name = os.path.basename(train_sample[0]["label_meta_dict"]["filename_or_obj"][0])
 
-                        if total_steps % opt.save_latest_freq == 0:
-                            print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
-                            model.save_networks('latest')
+                    # Pass inputs to model and optimise
+                    model.set_input([train_image, train_label])
+                    model.optimize_parameters(training=True)
+                    del train_image, train_label, train_sample
 
-                    # Log validation performance
-                    model.write_logs(training=False,
-                                     step=total_steps,
-                                     current_writer=writer)
+                    if total_steps % opt.print_freq == 0:
+                        losses = model.get_current_losses()
+                        t = (time.time() - iter_start_time) / opt.batch_size
+                        visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
+                        # print(f"Losses are {losses}")
 
-            print(f'End of epoch {epoch} / {opt.niter} \t Time Taken: {time.time() - epoch_start_time:.3f} sec')
-            model.update_learning_rate()
+                    if total_steps % opt.save_latest_freq == 0:
+                        losses = model.get_current_losses()
+                        print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
+                        model.save_networks(epoch, current_iter=total_steps, models_dir=MODELS_DIR)
+
+                    if total_steps % 250 == 0:
+                        model.write_logs(training=True,
+                                         step=total_steps,
+                                         current_writer=writer)
+                    iter_data_time = time.time()
+
+                if epoch % opt.save_epoch_freq == 0:
+                    # model.save_networks('latest')
+                    model.save_networks(epoch, current_iter=total_steps, models_dir=MODELS_DIR)
+
+                if epoch % val_gap == 0:
+                    model.eval()
+                    with torch.no_grad():
+                        for val_sample in val_loader:
+                            # Validation variables
+                            val_image = val_sample[0]['image']
+                            val_label = val_sample[0]['label']
+                            image_name = os.path.basename(val_sample[0]["image_meta_dict"]["filename_or_obj"][0])
+                            label_name = os.path.basename(val_sample[0]["label_meta_dict"]["filename_or_obj"][0])
+                            val_affine = val_sample[0]['image_meta_dict']['affine'][0, ...]
+                            label_affine = val_sample[0]['label_meta_dict']['affine'][0, ...]
+
+                            model.set_input([val_image, val_label])
+                            model.optimize_parameters(training=False)
+                            del val_image, val_label, val_sample
+
+                            if total_steps % opt.print_freq == 0:
+                                losses = model.get_current_losses()
+                                t = (time.time() - iter_start_time) / opt.batch_size
+                                visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
+
+                            if total_steps % opt.save_latest_freq == 0:
+                                print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
+                                model.save_networks('latest')
+
+                        # Log validation performance
+                        model.write_logs(training=False,
+                                         step=total_steps,
+                                         current_writer=writer)
+
+                print(f'End of epoch {epoch} / {opt.niter} \t Time Taken: {time.time() - epoch_start_time:.3f} sec')
+                model.update_learning_rate()
+        elif opt.phase == "test":
+            # Carry out inference
+            model.eval()
+            with torch.no_grad():
+                for inf_sample in inf_loader:
+                    inf_image = inf_sample[0]['image']
+                    inf_label = inf_sample[0]['label']
+                    image_name = os.path.basename(inf_sample[0]["image_meta_dict"]["filename_or_obj"][0])
+                    label_name = os.path.basename(inf_sample[0]["label_meta_dict"]["filename_or_obj"][0])
+                    inf_affine = inf_sample[0]['image_meta_dict']['affine'][0, ...]
+                    label_affine = inf_sample[0]['label_meta_dict']['affine'][0, ...]
+
+                    model.set_input([inf_image, inf_label])
+                    # model.optimize_parameters(training=False)
+                    del inf_image, inf_label, inf_sample
+
+                    # Inference
+                    fake_B, rec_A, fake_A, rec_B = model.test_forward(overlap=0.3)
+
+                    #
+
+
+

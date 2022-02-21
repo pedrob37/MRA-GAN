@@ -94,7 +94,7 @@ class BaseModel():
         return errors_ret
 
     # Save models to the disk
-    def save_networks(self, which_epoch, current_iter):
+    def save_networks(self, which_epoch, current_iter, models_dir):
         # Define ONE file for saving ALL state dicts
         save_filename = f'epoch_{which_epoch}_checkpoint_iters_{current_iter}.pth'
         current_state_dict = {'gen_optimizer_state_dict': self.optimizer_G.state_dict(),
@@ -107,7 +107,7 @@ class BaseModel():
                               'disc_scaler': self.disc_scaler.state_dict()}
         for name in self.model_names:
             if isinstance(name, str):
-                save_path = os.path.join(self.save_dir, save_filename)
+                save_path = os.path.join(models_dir, save_filename)
                 net = getattr(self, 'net' + name)
                 net.cpu()
                 if torch.cuda.is_available():
