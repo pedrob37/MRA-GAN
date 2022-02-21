@@ -59,14 +59,14 @@ if __name__ == '__main__':
                                                 mode=("nearest", "bilinear"),
                                                 as_tensor_output=False, prob=1.0,
                                                 padding_mode=('zeros', 'zeros')),
-                                    RandGaussianSmoothd(keys=["image"], prob=0.25,  # 0.2
+                                    RandGaussianSmoothd(keys=["label"], prob=0.25,  # 0.2
                                                         sigma_x=(0.25, 0.3),
                                                         sigma_y=(0.25, 0.3),
                                                         sigma_z=(0.25, 0.3)),
-                                    RandBiasFieldd(keys=["image"], degree=3, coeff_range=(0.1, 0.25),
+                                    RandBiasFieldd(keys=["label"], degree=3, coeff_range=(0.1, 0.25),
                                                    prob=0.25),  # Odd behaviour...
-                                    NormalizeIntensityd(keys=['image'], channel_wise=True),
-                                    RandGaussianNoiseD(keys=["image"], std=0.2, prob=0.5),
+                                    NormalizeIntensityd(keys=['label'], channel_wise=True),
+                                    RandGaussianNoiseD(keys=["label"], std=0.2, prob=0.5),
                                     RandSpatialCropSamplesd(keys=["image", "label"],
                                                             roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                             random_center=True,
@@ -74,11 +74,11 @@ if __name__ == '__main__':
                                                             num_samples=1),
                                     # SpatialPadd(keys=["image", "label"],
                                     #             spatial_size=opt.patch_size),
-                                    NormalizeIntensityd(keys=['image'], channel_wise=True),
                                     ToTensord(keys=['image', 'label'])])
 
         val_transforms = Compose([LoadImaged(keys=['image', 'label']),
                                   AddChanneld(keys=['image', 'label']),
+                                  NormalizeIntensityd(keys=['label'], channel_wise=True),
                                   RandSpatialCropSamplesd(keys=["image", "label"],
                                                           roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                           random_center=True,
@@ -86,7 +86,6 @@ if __name__ == '__main__':
                                                           num_samples=1),
                                   # SpatialPadd(keys=["image", "label"],
                                   #             spatial_size=opt.patch_size),
-                                  NormalizeIntensityd(keys=['image'], channel_wise=True),
                                   ToTensord(keys=['image', 'label'])])
     elif opt.phase == "test":
         from monai.inferers import sliding_window_inference
@@ -99,7 +98,7 @@ if __name__ == '__main__':
                                   #                         num_samples=1),
                                   # SpatialPadd(keys=["image", "label"],
                                   #             spatial_size=opt.patch_size),
-                                  NormalizeIntensityd(keys=['image'], channel_wise=True),
+                                  NormalizeIntensityd(keys=['label'], channel_wise=True),
                                   ToTensord(keys=['image', 'label'])])
 
     ## Relevant job directories
@@ -308,12 +307,12 @@ if __name__ == '__main__':
             model.eval()
             with torch.no_grad():
                 for inf_sample in inf_loader:
-                    inf_image = inf_sample[0]['image']
-                    inf_label = inf_sample[0]['label']
-                    image_name = os.path.basename(inf_sample[0]["image_meta_dict"]["filename_or_obj"][0])
-                    label_name = os.path.basename(inf_sample[0]["label_meta_dict"]["filename_or_obj"][0])
-                    inf_affine = inf_sample[0]['image_meta_dict']['affine'][0, ...]
-                    label_affine = inf_sample[0]['label_meta_dict']['affine'][0, ...]
+                    inf_image = inf_sample['image']
+                    inf_label = inf_sample['label']
+                    image_name = os.path.basename(inf_sample["image_meta_dict"]["filename_or_obj"][0])
+                    label_name = os.path.basename(inf_sample["label_meta_dict"]["filename_or_obj"][0])
+                    inf_affine = inf_sample['image_meta_dict']['affine'][0, ...]
+                    label_affine = inf_sample['label_meta_dict']['affine'][0, ...]
 
                     model.set_input([inf_image, inf_label])
                     # model.optimize_parameters(training=False)
@@ -321,6 +320,21 @@ if __name__ == '__main__':
 
                     # Inference
                     fake_B, rec_A, fake_A, rec_B = model.test_forward(overlap=0.3)
+                    assert inf_affine == label_affine
+                    print(fake_B.shape)
+                    # Saving
+                    save_img(fake_B.cpu().detach().squeeze().numpy(),
+                             inf_affine,
+                             os.path.join(FIG_DIR, "Fake_B_" + os.path.basename(image_name)))
+                    save_img(rec_A.cpu().detach().squeeze().numpy(),
+                             inf_affine,
+                             os.path.join(FIG_DIR, "Rec_A_" + os.path.basename(image_name)))
+                    save_img(fake_A.cpu().detach().squeeze().numpy(),
+                             inf_affine,
+                             os.path.join(FIG_DIR, "Fake_A_" + os.path.basename(label_name)))
+                    save_img(rec_B.cpu().detach().squeeze().numpy(),
+                             inf_affine,
+                             os.path.join(FIG_DIR, "Rec_B_" + os.path.basename(label_name)))
 
 
 

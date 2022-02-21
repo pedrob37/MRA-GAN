@@ -150,13 +150,13 @@ class CycleGANModel(BaseModel):
         fake_B = sliding_window_inference(self.real_A.to(device), 160, 1, self.netG_A,
                                           overlap=overlap,
                                           mode='gaussian')
-        rec_A = sliding_window_inference(self.fake_B.to(device), 160, 1, self.netG_B,
+        rec_A = sliding_window_inference(fake_B.to(device), 160, 1, self.netG_B,
                                          overlap=overlap,
                                          mode='gaussian')
         fake_A = sliding_window_inference(self.real_B.to(device), 160, 1, self.netG_B,
                                           overlap=overlap,
                                           mode='gaussian')
-        rec_B = sliding_window_inference(self.fake_A.to(device), 160, 1, self.netG_A,
+        rec_B = sliding_window_inference(fake_A.to(device), 160, 1, self.netG_A,
                                          overlap=overlap,
                                          mode='gaussian')
         return fake_B, rec_A, fake_A, rec_B
