@@ -2,6 +2,7 @@ import os
 import torch
 from collections import OrderedDict
 from models import networks3D
+import monai.visualize.img2tensorboard as img2tensorboard
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # chin added 20220128
 
@@ -131,6 +132,91 @@ class BaseModel():
                                         "Discriminator_A": losses["D_A"],
                                         "Discriminator_B": losses["D_B"]}, step)
 
+    @ staticmethod
+    def normalise_images(array):
+        import numpy as np
+        return (array - np.min(array)) / (np.max(array) - np.min(array))
+
+    def write_images(self, training=True, step=None, current_writer=None, current_opt=None, current_fold=None):
+        # Shape checks
+        print("Basic input and output shape checks!")
+        print(self.real_B.shape,
+              self.real_A.shape,
+              self.fake_B.shape,
+              self.fake_A.shape,
+              self.rec_B.shape,
+              self.rec_A.shape,
+              )
+        if training:
+            # Reals
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.real_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Visuals/Real_B_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.real_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Visuals/Real_A_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+
+            # Generated
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.fake_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Visuals/Fake_B_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.fake_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Visuals/Fake_A_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.rec_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Visuals/Rec_B_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.rec_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Visuals/Rec_A_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+        else:
+            # Reals
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.real_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Validation/Real_B_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.real_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Validation/Real_A_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+
+            # Generated
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.fake_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Validation/Fake_B_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.fake_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Validation/Fake_A_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.rec_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Validation/Rec_B_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.rec_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Validation/Rec_A_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+
+
     def __patch_instance_norm_state_dict(self, state_dict, module, keys, i=0):
         key = keys[i]
         print('keys', keys)
@@ -183,10 +269,12 @@ class BaseModel():
                 if hasattr(checkpoint[f"net_{name}_state_dict"], '_metadata'):
                     del checkpoint[f"net_{name}_state_dict"]._metadata
                 # patch InstanceNorm checkpoints prior to 0.4
-                for key in list(checkpoint[
-                                    f"net_{name}_state_dict"].keys()):  # need to copy keys here because we mutate in loop
-                    self.__patch_instance_norm_state_dict(checkpoint["model_state_dict"], net, key.split('.'))
+                # for key in list(checkpoint[
+                #                     f"net_{name}_state_dict"].keys()):  # need to copy keys here because we mutate in loop
+                #     self.__patch_instance_norm_state_dict(checkpoint["model_state_dict"], net, key.split('.'))
                 net.load_state_dict(checkpoint[f"net_{name}_state_dict"])
+        # Return current training step
+        return checkpoint['running_iter']
 
     # print network information
     def print_networks(self, verbose):

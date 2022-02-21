@@ -1,18 +1,11 @@
 import os
-import sys
-
 import torch
-
-from utils.NiftiDataset import *
-import utils.NiftiDataset as NiftiDataset
 from torch.utils.data import DataLoader
 from options.train_options import TrainOptions
-# from logger import *
 import time
 from models import create_model
 from utils.visualizer import Visualizer
 from utils.utils import create_path, save_img
-# from test import inference
 import monai
 import pandas as pd
 from torch.utils.tensorboard import SummaryWriter
@@ -201,9 +194,10 @@ if __name__ == '__main__':
         print(f'The number of files is {num_files}')
 
         if num_files > 0 and LOAD:
-            model.load_networks('latest', models_dir=MODELS_DIR, phase=opt.phase)
+            total_steps = model.load_networks('latest', models_dir=MODELS_DIR, phase=opt.phase)
+        else:
+            total_steps = 0
         visualizer = Visualizer(opt)
-        total_steps = 0
 
         if opt.phase == "train":
             # Epochs
@@ -242,7 +236,6 @@ if __name__ == '__main__':
                         losses = model.get_current_losses()
                         t = (time.time() - iter_start_time) / opt.batch_size
                         visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
-                        # print(f"Losses are {losses}")
 
                     if total_steps % opt.save_latest_freq == 0:
                         losses = model.get_current_losses()
@@ -253,6 +246,11 @@ if __name__ == '__main__':
                         model.write_logs(training=True,
                                          step=total_steps,
                                          current_writer=writer)
+                        model.write_images(training=True,
+                                           step=total_steps,
+                                           current_writer=writer,
+                                           current_opt=opt,
+                                           current_fold=fold)
                     iter_data_time = time.time()
 
                 if epoch % opt.save_epoch_freq == 0:
