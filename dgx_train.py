@@ -125,6 +125,7 @@ if __name__ == '__main__':
 
     # Other variables
     val_gap = 5
+    LOAD = True
 
     # Folds
     for fold in range(10):
@@ -199,8 +200,8 @@ if __name__ == '__main__':
         num_files = len(file_list)
         print(f'The number of files is {num_files}')
 
-        if opt.epoch_count > 1:
-            model.load_networks(opt.epoch_count)
+        if num_files > 0 and LOAD:
+            model.load_networks('latest', models_dir=MODELS_DIR, phase=opt.phase)
         visualizer = Visualizer(opt)
         total_steps = 0
 
@@ -308,8 +309,6 @@ if __name__ == '__main__':
 
                     # Inference
                     fake_B, rec_A, fake_A, rec_B = model.test_forward(overlap=0.3)
-
-                    #
 
 
 

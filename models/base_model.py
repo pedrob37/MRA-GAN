@@ -148,17 +148,29 @@ class BaseModel():
                                                   i + 1)  # Chin commented 2022.02.02
 
     # load models from the disk
-    def load_networks(self, which_epoch):
-        # Loading ONE torch file for all nets
-        load_filename = f'{which_epoch}_checkpoint.pth'
-        load_path = os.path.join(self.save_dir, load_filename)
+    def load_networks(self, which_epoch, models_dir, phase="train"):
+        import glob
+        if which_epoch == "latest":
+            # Find latest epoch
+            model_files = glob.glob(os.path.join(models_dir, '*.pth'))
+            print("The following model files were found:\n")
+            for some_model_file in model_files:
+                print(some_model_file)
+            sorted_model_files = sorted(model_files, key=os.path.getmtime)
+            # Allows inference to be run on nth latest file!
+            load_path = sorted_model_files[-1]
+        else:
+            # Loading ONE torch file for all nets
+            load_filename = f'epoch_{which_epoch}_checkpoint*'
+            load_path = glob.glob(os.path.join(models_dir, load_filename))[0]
         print(f'Loading the model from {load_path}')
         checkpoint = torch.load(load_path, map_location=self.device)
-        # Scalers and optimizers
-        self.optimizer_G.load_state_dict(checkpoint['gen_optimizer_state_dict'])
-        self.optimizer_D.load_state_dict(checkpoint['disc_optimizer_state_dict'])
-        self.gen_scaler.load_state_dict(checkpoint['gen_scaler'])
-        self.disc_scaler.load_state_dict(checkpoint['disc_scaler'])
+        if phase == "train":
+            # Scalers and optimizers
+            self.optimizer_G.load_state_dict(checkpoint['gen_optimizer_state_dict'])
+            self.optimizer_D.load_state_dict(checkpoint['disc_optimizer_state_dict'])
+            self.gen_scaler.load_state_dict(checkpoint['gen_scaler'])
+            self.disc_scaler.load_state_dict(checkpoint['disc_scaler'])
 
         # Networks loading
         for name in self.model_names:
