@@ -145,7 +145,7 @@ class CycleGANModel(BaseModel):
         flip_labels = np.random.uniform(0, 1)
         if flip_labels < real_label_flip_chance:
             loss_D_real = self.criterionGAN(pred_real, False)
-        if flip_labels < real_label_flip_chance:
+        else:
             loss_D_real = self.criterionGAN(pred_real, True)
         # Fake
         pred_fake = netD(fake.detach())

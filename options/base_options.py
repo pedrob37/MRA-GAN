@@ -17,7 +17,7 @@ class BaseOptions():
         parser.add_argument('--batch_size', type=int, default=1, help='input batch size')
         #parser.add_argument('--patch_size', default=[128, 128, 64], help='Size of the patches extracted from the image') # chin commented 20220128
         #parser.add_argument('--patch_size', default=[128/2, 128/2, 64/2], help='Size of the patches extracted from the image')
-        parser.add_argument('--patch_size', default=96, help='Size of the patches extracted from the image')
+        parser.add_argument('--patch_size', default=96, type=int, help='Size of the patches extracted from the image')
         parser.add_argument('--input_nc', type=int, default=1, help='# of input image channels')
         parser.add_argument('--output_nc', type=int, default=1, help='# of output image channels')
         parser.add_argument('--resample', default=False, help='Decide or not to rescale the images to a new resolution')

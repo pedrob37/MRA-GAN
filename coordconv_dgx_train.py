@@ -1,29 +1,26 @@
 import os
 import sys
 from utils.NiftiDataset import *
-import utils.NiftiDataset as NiftiDataset
 from torch.utils.data import DataLoader
 from options.train_options import TrainOptions
-# from logger import *
 import time
 from models import create_model
 from utils.visualizer import Visualizer
-from utils.utils import create_path, save_img
-# from test import inference
+from utils.utils import create_path, save_img, CoordConvd
 import monai
 import pandas as pd
 from torch.utils.tensorboard import SummaryWriter
 from monai.transforms import (Compose,
                               LoadImaged,
                               AddChanneld,
-                              RandAffined,
+                              CropForegroundd,
                               RandCropByPosNegLabeld,
-                              RandBiasFieldd,
+                              Orientationd,
                               ToTensord,
                               RandSpatialCropSamplesd,
                               NormalizeIntensityd,
-                              RandGaussianSmoothd,
-                              RandGaussianNoiseD,
+                              RandWeightedCropd,
+                              SpatialCropd,
                               SpatialPadd,
                               )
 
@@ -55,42 +52,29 @@ if __name__ == '__main__':
     # Transforms
     train_transforms = Compose([LoadImaged(keys=['image', 'label']),
                                 AddChanneld(keys=['image', 'label']),
-                                RandAffined(keys=["image", "label"],
-                                            scale_range=(0.1, 0.1, 0.1),
-                                            rotate_range=(0.25, 0.25, 0.25),
-                                            translate_range=(20, 20, 20),
-                                            mode=("nearest", "bilinear"),
-                                            as_tensor_output=False, prob=1.0,
-                                            padding_mode=('zeros', 'zeros')),
-                                RandGaussianSmoothd(keys=["image"], prob=0.25,  # 0.2
-                                                    sigma_x=(0.25, 0.3),
-                                                    sigma_y=(0.25, 0.3),
-                                                    sigma_z=(0.25, 0.3)),
-                                RandBiasFieldd(keys=["image"], degree=3, coeff_range=(0.1, 0.25),
-                                               prob=0.25),  # Odd behaviour...
-                                NormalizeIntensityd(keys=['image'], channel_wise=True),
-                                RandGaussianNoiseD(keys=["image"], std=0.2, prob=0.5),
-                                RandSpatialCropSamplesd(keys=["image", "label"],
+                                CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
+                                RandSpatialCropSamplesd(keys=["image", "label", "coords"],
                                                         roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                         random_center=True,
                                                         random_size=False,
                                                         num_samples=1),
                                 # SpatialPadd(keys=["image", "label"],
                                 #             spatial_size=opt.patch_size),
-                                NormalizeIntensityd(keys=['image'], channel_wise=True),
-                                ToTensord(keys=['image', 'label'])])
+                                NormalizeIntensityd(keys=['image', "label", "coords"], channel_wise=True),
+                                ToTensord(keys=['image', 'label', "coords"])])
 
     val_transforms = Compose([LoadImaged(keys=['image', 'label']),
                               AddChanneld(keys=['image', 'label']),
-                              RandSpatialCropSamplesd(keys=["image", "label"],
+                              CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
+                              RandSpatialCropSamplesd(keys=["image", "label", "coords"],
                                                       roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                       random_center=True,
                                                       random_size=False,
                                                       num_samples=1),
                               # SpatialPadd(keys=["image", "label"],
                               #             spatial_size=opt.patch_size),
-                              NormalizeIntensityd(keys=['image'], channel_wise=True),
-                              ToTensord(keys=['image', 'label'])])
+                              NormalizeIntensityd(keys=['image', "label", "coords"], channel_wise=True),
+                              ToTensord(keys=['image', 'label', "coords"])])
 
     ## Relevant job directories
     CACHE_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Cache/{opt.job_name}"
@@ -182,8 +166,15 @@ if __name__ == '__main__':
                 epoch_iter += opt.batch_size
 
                 # Iteration-specific data
-                train_image = train_sample[0]['image']
-                train_label = train_sample[0]['label']
+                train_image = train_sample[0]['image'].cuda(non_blocking=True)
+                train_label = train_sample[0]['label'].cuda(non_blocking=True)
+                # CoordConv
+                train_coords = train_sample[0]['coords'].cuda(non_blocking=True)
+
+                # Concatenate coordinates to channel dimension
+                print(train_image.shape, train_coords.shape)
+                train_image = torch.cat((train_image, train_coords), dim=1)
+                print(train_image.shape)
 
                 # Names (Not needed for now)
                 image_name = os.path.basename(train_sample[0]["image_meta_dict"]["filename_or_obj"][0])
@@ -192,7 +183,7 @@ if __name__ == '__main__':
                 # Pass inputs to model and optimise
                 model.set_input([train_image, train_label])
                 model.optimize_parameters(training=True)
-                del train_image, train_label
+                del train_image, train_label, train_coords, train_sample
 
                 if total_steps % opt.print_freq == 0:
                     losses = model.get_current_losses()
@@ -221,8 +212,11 @@ if __name__ == '__main__':
                     for val_sample in val_loader:
                         # Complete this
                         # Validation variables
-                        val_image = val_sample[0]['image']
-                        val_label = val_sample[0]['label']
+                        val_image = val_sample[0]['image'].cuda(non_blocking=True)
+                        val_label = val_sample[0]['label'].cuda(non_blocking=True)
+                        # CoordConv
+                        val_coords = val_sample[0]['coords'].cuda(non_blocking=True)
+
                         image_name = os.path.basename(val_sample[0]["image_meta_dict"]["filename_or_obj"][0])
                         label_name = os.path.basename(val_sample[0]["label_meta_dict"]["filename_or_obj"][0])
                         val_affine = val_sample[0]['image_meta_dict']['affine'][0, ...]
@@ -230,7 +224,7 @@ if __name__ == '__main__':
 
                         model.set_input([val_image, val_label])
                         model.optimize_parameters(training=False)
-                        del val_image, val_label
+                        del val_image, val_label, val_coords, val_sample
 
                         if total_steps % opt.print_freq == 0:
                             losses = model.get_current_losses()
