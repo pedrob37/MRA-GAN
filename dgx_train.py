@@ -121,6 +121,7 @@ if __name__ == '__main__':
 
     # Re-assign checkpoints directory
     opt.checkpoints_dir = MODELS_DIR
+    opt.log_dir = LOG_DIR
 
     # Other variables
     val_gap = 5
