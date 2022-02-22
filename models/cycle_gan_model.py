@@ -162,7 +162,7 @@ class CycleGANModel(BaseModel):
         return fake_B, rec_A, fake_A, rec_B
 
     def backward_D_basic(self, netD, real, fake, real_label_flip_chance=0.25):
-        print(f"The label flipping chance is {real_label_flip_chance}")
+        # print(f"The label flipping chance is {real_label_flip_chance}")
         # Real
         pred_real = netD(real)
         flip_labels = np.random.uniform(0, 1)
