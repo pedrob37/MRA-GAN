@@ -128,7 +128,7 @@ def define_D(input_nc, ndf, netD,
 # but it abstracts away the need to create the target label tensor
 # that has the same size as the input
 class GANLoss(nn.Module):
-    def  __init__(self, use_lsgan=True, target_real_label=1.0, target_fake_label=0.0):
+    def __init__(self, use_lsgan=True, target_real_label=1.0, target_fake_label=0.0):
         super(GANLoss, self).__init__()
         self.register_buffer('real_label', torch.tensor(target_real_label))
         self.register_buffer('fake_label', torch.tensor(target_fake_label))

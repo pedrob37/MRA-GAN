@@ -107,7 +107,7 @@ class CycleGANModel(BaseModel):
             self.fake_A_pool = ImagePool(opt.pool_size)
             self.fake_B_pool = ImagePool(opt.pool_size)
             # define loss functions
-            self.criterionGAN = networks3D.GANLoss(use_lsgan=not opt.no_lsgan).to(self.device)
+            self.criterionGAN = networks3D.GANLoss(use_lsgan=not opt.no_lsgan, target_real_label=opt.real_label).to(self.device)
             self.criterionCycle = torch.nn.L1Loss()
             self.criterionIdt = torch.nn.L1Loss()
             # initialize optimizers
@@ -162,6 +162,7 @@ class CycleGANModel(BaseModel):
         return fake_B, rec_A, fake_A, rec_B
 
     def backward_D_basic(self, netD, real, fake, real_label_flip_chance=0.25):
+        print(f"The label flipping chance is {real_label_flip_chance}")
         # Real
         pred_real = netD(real)
         flip_labels = np.random.uniform(0, 1)
@@ -180,13 +181,15 @@ class CycleGANModel(BaseModel):
         # fake_B = self.fake_B_pool.query(self.fake_B)
         # self.loss_D_A = self.backward_D_basic(self.netD_A, self.real_B, fake_B)
         fake_B = self.fake_B_pool.query(self.fake_B.to(device))
-        self.loss_D_A = self.backward_D_basic(self.netD_A.to(device), self.real_B.to(device), fake_B)
+        self.loss_D_A = self.backward_D_basic(self.netD_A.to(device), self.real_B.to(device), fake_B,
+                                              real_label_flip_chance=self.opt.label_flipping_chance)
 
     def backward_D_B(self):
         # fake_A = self.fake_A_pool.query(self.fake_A)
         # self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
         fake_A = self.fake_A_pool.query(self.fake_A.to(device))
-        self.loss_D_B = self.backward_D_basic(self.netD_B.to(device), self.real_A.to(device), fake_A)
+        self.loss_D_B = self.backward_D_basic(self.netD_B.to(device), self.real_A.to(device), fake_A,
+                                              real_label_flip_chance=self.opt.label_flipping_chance)
 
     def backward_G(self):
         lambda_idt = self.opt.lambda_identity

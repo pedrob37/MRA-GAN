@@ -32,8 +32,8 @@ if __name__ == '__main__':
 
     ### MONAI
     # Data directory
-    images_dir = os.path.join(opt.data_path, 'Images')
-    labels_dir = os.path.join(opt.data_path, 'Labels')
+    images_dir = os.path.join(opt.data_path, 'Images')  # Binary
+    labels_dir = os.path.join(opt.data_path, 'Labels')  # MRA
 
     # Read csv + add directory to filenames
     df = pd.read_csv(opt.csv_file)
@@ -46,6 +46,9 @@ if __name__ == '__main__':
     inf_fold = 9
     inf_df = df[df.fold == inf_fold]
     inf_df.reset_index(drop=True, inplace=True)
+
+    # Check real label
+    print(f"The target real label is {opt.real_label}")
 
     # Augmentations
     # Transforms
@@ -335,6 +338,3 @@ if __name__ == '__main__':
                     save_img(rec_B.cpu().detach().squeeze().numpy(),
                              inf_affine,
                              os.path.join(FIG_DIR, "Rec_B_" + os.path.basename(label_name)))
-
-
-
