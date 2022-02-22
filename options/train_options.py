@@ -10,6 +10,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--real_label', type=float, default=1.0, help='Target real label for GAN loss: 1 by default but supports smoothing')
         parser.add_argument('--label_flipping_chance', type=float, default=0.25, help='Chance of label flipping')
         parser.add_argument('--job_name', type=str, default="", help='Job name')
+        parser.add_argument('--augmentation_level', type=str, default="heavy", help='Use none, light, or heavy augmentation strategy')
         parser.add_argument('--save_latest_freq', type=int, default=1000, help='frequency of saving the latest results')
         parser.add_argument('--save_epoch_freq', type=int, default=50, help='frequency of saving checkpoints at the end of epochs')
         parser.add_argument('--continue_train', action='store_true', help='continue training: load the latest model')

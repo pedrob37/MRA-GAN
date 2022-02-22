@@ -53,31 +53,57 @@ if __name__ == '__main__':
     # Augmentations
     # Transforms
     if opt.phase == "train":
-        train_transforms = Compose([LoadImaged(keys=['image', 'label']),
-                                    AddChanneld(keys=['image', 'label']),
-                                    RandAffined(keys=["image", "label"],
-                                                scale_range=(0.1, 0.1, 0.1),
-                                                rotate_range=(0.25, 0.25, 0.25),
-                                                translate_range=(20, 20, 20),
-                                                mode=("nearest", "bilinear"),
-                                                as_tensor_output=False, prob=1.0,
-                                                padding_mode=('zeros', 'zeros')),
-                                    RandGaussianSmoothd(keys=["label"], prob=0.25,  # 0.2
-                                                        sigma_x=(0.25, 0.3),
-                                                        sigma_y=(0.25, 0.3),
-                                                        sigma_z=(0.25, 0.3)),
-                                    RandBiasFieldd(keys=["label"], degree=3, coeff_range=(0.1, 0.25),
-                                                   prob=0.25),  # Odd behaviour...
-                                    NormalizeIntensityd(keys=['label'], channel_wise=True),
-                                    RandGaussianNoiseD(keys=["label"], std=0.2, prob=0.5),
-                                    RandSpatialCropSamplesd(keys=["image", "label"],
-                                                            roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
-                                                            random_center=True,
-                                                            random_size=False,
-                                                            num_samples=1),
-                                    # SpatialPadd(keys=["image", "label"],
-                                    #             spatial_size=opt.patch_size),
-                                    ToTensord(keys=['image', 'label'])])
+        if opt.augmentation_level == "heavy":
+            train_transforms = Compose([LoadImaged(keys=['image', 'label']),
+                                        AddChanneld(keys=['image', 'label']),
+                                        RandAffined(keys=["image", "label"],
+                                                    scale_range=(0.1, 0.1, 0.1),
+                                                    rotate_range=(0.25, 0.25, 0.25),
+                                                    translate_range=(20, 20, 20),
+                                                    mode=("nearest", "bilinear"),
+                                                    as_tensor_output=False, prob=1.0,
+                                                    padding_mode=('zeros', 'zeros')),
+                                        RandGaussianSmoothd(keys=["label"], prob=0.25,  # 0.2
+                                                            sigma_x=(0.25, 0.3),
+                                                            sigma_y=(0.25, 0.3),
+                                                            sigma_z=(0.25, 0.3)),
+                                        RandBiasFieldd(keys=["label"], degree=3, coeff_range=(0.1, 0.25),
+                                                       prob=0.25),  # Odd behaviour...
+                                        NormalizeIntensityd(keys=['label'], channel_wise=True),
+                                        RandGaussianNoiseD(keys=["label"], std=0.2, prob=0.5),
+                                        RandSpatialCropSamplesd(keys=["image", "label"],
+                                                                roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                                random_center=True,
+                                                                random_size=False,
+                                                                num_samples=1),
+                                        ToTensord(keys=['image', 'label'])])
+        elif opt.augmentation_level == "light":
+            train_transforms = Compose([LoadImaged(keys=['image', 'label']),
+                                        AddChanneld(keys=['image', 'label']),
+                                        RandAffined(keys=["image", "label"],
+                                                    scale_range=(0.1, 0.1, 0.1),
+                                                    rotate_range=(0.25, 0.25, 0.25),
+                                                    translate_range=(20, 20, 20),
+                                                    mode=("nearest", "bilinear"),
+                                                    as_tensor_output=False, prob=1.0,
+                                                    padding_mode=('zeros', 'zeros')),
+                                        NormalizeIntensityd(keys=['label'], channel_wise=True),
+                                        RandSpatialCropSamplesd(keys=["image", "label"],
+                                                                roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                                random_center=True,
+                                                                random_size=False,
+                                                                num_samples=1),
+                                        ToTensord(keys=['image', 'label'])])
+        elif opt.augmentation_level == "none":
+            train_transforms = Compose([LoadImaged(keys=['image', 'label']),
+                                        AddChanneld(keys=['image', 'label']),
+                                        NormalizeIntensityd(keys=['label'], channel_wise=True),
+                                        RandSpatialCropSamplesd(keys=["image", "label"],
+                                                                roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                                random_center=True,
+                                                                random_size=False,
+                                                                num_samples=1),
+                                        ToTensord(keys=['image', 'label'])])
 
         val_transforms = Compose([LoadImaged(keys=['image', 'label']),
                                   AddChanneld(keys=['image', 'label']),
