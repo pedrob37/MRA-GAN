@@ -112,9 +112,9 @@ class CycleGANModel(BaseModel):
             self.criterionIdt = torch.nn.L1Loss()
             # initialize optimizers
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
-                                                lr=opt.lr, betas=(opt.beta1, 0.999))
+                                                lr=opt.gen_lr, betas=(opt.gen_beta1, 0.999))
             self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()),
-                                                lr=opt.lr, betas=(opt.beta1, 0.999))
+                                                lr=opt.disc_lr, betas=(opt.disc_beta1, 0.999))
             self.optimizers = []
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
