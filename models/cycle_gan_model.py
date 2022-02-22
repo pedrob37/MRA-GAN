@@ -110,6 +110,8 @@ class CycleGANModel(BaseModel):
             self.criterionGAN = networks3D.GANLoss(use_lsgan=not opt.no_lsgan, target_real_label=opt.real_label).to(self.device)
             self.criterionCycle = torch.nn.L1Loss()
             self.criterionIdt = torch.nn.L1Loss()
+            # Paired L1 loss
+            self.pairedL1criterion = torch.nn.L1Loss()
             # initialize optimizers
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
                                                 lr=opt.gen_lr, betas=(opt.gen_beta1, 0.999))
@@ -118,6 +120,7 @@ class CycleGANModel(BaseModel):
             self.optimizers = []
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
+
             # Scalers
             self.gen_scaler = torch.cuda.amp.GradScaler()
             self.disc_scaler = torch.cuda.amp.GradScaler()
@@ -252,9 +255,15 @@ class CycleGANModel(BaseModel):
         self.loss_cor_coe_GB = networks3D.Cor_CoeLoss(self.fake_A.to(device), self.real_B.to(
             device)) * lambda_co_B  # fake mr & real ct; Evaluate the Generator of mr(G_B)  #chin added 2022.01.28
 
-        # combined loss
-        # self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
-        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B + self.loss_cor_coe_GA + self.loss_cor_coe_GB
+        # L1 loss
+        if self.opt.paired_l1_loss:
+            self.pairedL1Loss = self.pairedL1criterion(self.fake_B.to(device), self.real_B.to(device))
+
+            # combined loss
+            # self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
+            self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B + self.loss_cor_coe_GA + self.loss_cor_coe_GB + self.pairedL1Loss
+        else:
+            self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B + self.loss_cor_coe_GA + self.loss_cor_coe_GB
 
     def optimize_parameters(self, training=True):
         with torch.cuda.amp.autocast(enabled=True):

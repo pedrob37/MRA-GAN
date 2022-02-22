@@ -11,6 +11,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--label_flipping_chance', type=float, default=0.25, help='Chance of label flipping')
         parser.add_argument('--job_name', type=str, default="", help='Job name')
         parser.add_argument('--augmentation_level', type=str, default="heavy", help='Use none, light, or heavy augmentation strategy')
+        parser.add_argument('--paired_l1_loss', type=self.str2bool, nargs='?', const=True, default=False, help='Use a paired L1 loss between real and fake MRAs')
         parser.add_argument('--save_latest_freq', type=int, default=1000, help='frequency of saving the latest results')
         parser.add_argument('--save_epoch_freq', type=int, default=50, help='frequency of saving checkpoints at the end of epochs')
         parser.add_argument('--continue_train', action='store_true', help='continue training: load the latest model')
