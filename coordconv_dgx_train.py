@@ -274,6 +274,7 @@ if __name__ == '__main__':
                     # Concatenate coordinates to channel dimension
                     print(train_image.shape, train_coords.shape)
                     train_image = torch.cat((train_image, train_coords), dim=1)
+                    train_label = torch.cat((train_label, train_coords), dim=1)
                     print(train_image.shape)
 
                     # Names (Not needed for now)
@@ -325,6 +326,7 @@ if __name__ == '__main__':
                             # Concatenate coordinates to channel dimension
                             print(val_image.shape, val_coords.shape)
                             val_image = torch.cat((val_image, val_coords), dim=1)
+                            val_label = torch.cat((val_label, val_coords), dim=1)
                             print(val_image.shape)
 
                             image_name = os.path.basename(val_sample[0]["image_meta_dict"]["filename_or_obj"][0])
@@ -364,6 +366,7 @@ if __name__ == '__main__':
                     # Concatenate coordinates to channel dimension
                     print(inf_image.shape, inf_coords.shape)
                     inf_image = torch.cat((inf_image, inf_coords), dim=1)
+                    inf_label = torch.cat((inf_label, inf_coords), dim=1)
                     print(inf_image.shape)
 
                     image_name = os.path.basename(inf_sample["image_meta_dict"]["filename_or_obj"][0])
