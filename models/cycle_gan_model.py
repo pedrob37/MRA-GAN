@@ -129,37 +129,33 @@ class CycleGANModel(BaseModel):
         AtoB = self.opt.which_direction == 'AtoB'
         self.real_A = input[0 if AtoB else 1].to(self.device)
         self.real_B = input[1 if AtoB else 0].to(self.device)
+        if self.opt.coordconv:
+            self.coords = input[2].to(self.device)
         # self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
     def forward(self):
-        ## old
-        # self.fake_B = self.netG_A(self.real_A)
-        # self.rec_A = self.netG_B(self.fake_B)
-
-        # self.fake_A = self.netG_B(self.real_B)
-        # self.rec_B = self.netG_A(self.fake_A)
-        ## end of old
-
-        # chin
         self.fake_B = self.netG_A(self.real_A.to(device))
-        self.rec_A = self.netG_B(self.fake_B.to(device))
-
         self.fake_A = self.netG_B(self.real_B.to(device))
-        self.rec_B = self.netG_A(self.fake_A.to(device))
-        # end of chin
+
+        if not self.opt.coordconv:
+            self.rec_A = self.netG_B(self.fake_B.to(device))
+            self.rec_B = self.netG_A(self.fake_A.to(device))
+        else:
+            self.rec_A = self.netG_B(torch.cat((self.fake_B.to(device), self.coords), dim=1))
+            self.rec_B = self.netG_A(torch.cat((self.fake_A.to(device), self.coords), dim=1))
 
     def test_forward(self, overlap=0.3):
         from monai.inferers import sliding_window_inference
         fake_B = sliding_window_inference(self.real_A.to(device), 160, 1, self.netG_A,
                                           overlap=overlap,
                                           mode='gaussian')
-        rec_A = sliding_window_inference(fake_B.to(device), 160, 1, self.netG_B,
+        rec_A = sliding_window_inference(torch.cat((fake_B.to(device), self.coords), dim=1), 160, 1, self.netG_B,
                                          overlap=overlap,
                                          mode='gaussian')
         fake_A = sliding_window_inference(self.real_B.to(device), 160, 1, self.netG_B,
                                           overlap=overlap,
                                           mode='gaussian')
-        rec_B = sliding_window_inference(fake_A.to(device), 160, 1, self.netG_A,
+        rec_B = sliding_window_inference(torch.cat((fake_A.to(device), self.coords), dim=1), 160, 1, self.netG_A,
                                          overlap=overlap,
                                          mode='gaussian')
         return fake_B, rec_A, fake_A, rec_B

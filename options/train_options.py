@@ -9,6 +9,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--csv_file', type=str, default="/nfs/home/pedro/MRA-GAN/IXI-MRA-GAN-fold-csv.csv", help='Dataset csv containing fold information')
         parser.add_argument('--real_label', type=float, default=1.0, help='Target real label for GAN loss: 1 by default but supports smoothing')
         parser.add_argument('--label_flipping_chance', type=float, default=0.25, help='Chance of label flipping')
+        parser.add_argument('--coordconv', type=self.str2bool, nargs='?', const=True, default=False, help='Using coordconv or not')
         parser.add_argument('--job_name', type=str, default="", help='Job name')
         parser.add_argument('--augmentation_level', type=str, default="heavy", help='Use none, light, or heavy augmentation strategy')
         parser.add_argument('--paired_l1_loss', type=self.str2bool, nargs='?', const=True, default=False, help='Use a paired L1 loss between real and fake MRAs')
