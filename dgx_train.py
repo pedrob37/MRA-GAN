@@ -277,7 +277,10 @@ if __name__ == '__main__':
                     if total_steps % opt.print_freq == 0:
                         losses = model.get_current_losses()
                         t = (time.time() - iter_start_time) / opt.batch_size
-                        visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
+                        try:
+                            visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
+                        except:
+                            print("Passing for now")
 
                     if total_steps % opt.save_latest_freq == 0:
                         losses = model.get_current_losses()
@@ -315,10 +318,10 @@ if __name__ == '__main__':
                             model.optimize_parameters(training=False)
                             del val_image, val_label, val_sample
 
-                            if total_steps % opt.print_freq == 0:
-                                losses = model.get_current_losses()
-                                t = (time.time() - iter_start_time) / opt.batch_size
-                                visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
+                            # if total_steps % opt.print_freq == 0:
+                            #     losses = model.get_current_losses()
+                            #     t = (time.time() - iter_start_time) / opt.batch_size
+                            #     visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
 
                             if total_steps % opt.save_latest_freq == 0:
                                 print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')

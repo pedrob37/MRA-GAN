@@ -139,14 +139,19 @@ class BaseModel():
 
     def write_images(self, training=True, step=None, current_writer=None, current_opt=None, current_fold=None):
         # Shape checks
-        print("Basic input and output shape checks!")
-        print(self.real_B.shape,
-              self.real_A.shape,
-              self.fake_B.shape,
-              self.fake_A.shape,
-              self.rec_B.shape,
-              self.rec_A.shape,
-              )
+        # print("Basic input and output shape checks!")
+        # print(self.real_B.shape,
+        #       self.real_A.shape,
+        #       self.fake_B.shape,
+        #       self.fake_A.shape,
+        #       self.rec_B.shape,
+        #       self.rec_A.shape,
+        #       )
+        self.fake_B = self.netG_A(self.real_A.to(device))
+        self.rec_A = self.netG_B(self.fake_B.to(device))
+
+        self.fake_A = self.netG_B(self.real_B.to(device))
+        self.rec_B = self.netG_A(self.fake_A.to(device))
         if training:
             # Reals
             img2tensorboard.add_animated_gif(writer=current_writer,
