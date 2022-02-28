@@ -272,10 +272,10 @@ if __name__ == '__main__':
                     train_coords = train_sample[0]['coords'].cuda(non_blocking=True)
 
                     # Concatenate coordinates to channel dimension
-                    print(train_image.shape, train_coords.shape)
+                    # print(train_image.shape, train_coords.shape)
                     train_image = torch.cat((train_image, train_coords), dim=1)
                     train_label = torch.cat((train_label, train_coords), dim=1)
-                    print(train_image.shape)
+                    # print(train_image.shape, train_label.shape)
 
                     # Names (Not needed for now)
                     image_name = os.path.basename(train_sample[0]["image_meta_dict"]["filename_or_obj"][0])
@@ -324,10 +324,10 @@ if __name__ == '__main__':
                             val_coords = val_sample[0]['coords'].cuda(non_blocking=True)
 
                             # Concatenate coordinates to channel dimension
-                            print(val_image.shape, val_coords.shape)
+                            # print(val_image.shape, val_coords.shape)
                             val_image = torch.cat((val_image, val_coords), dim=1)
                             val_label = torch.cat((val_label, val_coords), dim=1)
-                            print(val_image.shape)
+                            # print(val_image.shape)
 
                             image_name = os.path.basename(val_sample[0]["image_meta_dict"]["filename_or_obj"][0])
                             label_name = os.path.basename(val_sample[0]["label_meta_dict"]["filename_or_obj"][0])
@@ -364,10 +364,10 @@ if __name__ == '__main__':
                     inf_coords = inf_sample[0]['coords'].cuda(non_blocking=True)
 
                     # Concatenate coordinates to channel dimension
-                    print(inf_image.shape, inf_coords.shape)
+                    # print(inf_image.shape, inf_coords.shape)
                     inf_image = torch.cat((inf_image, inf_coords), dim=1)
                     inf_label = torch.cat((inf_label, inf_coords), dim=1)
-                    print(inf_image.shape)
+                    # print(inf_image.shape)
 
                     image_name = os.path.basename(inf_sample["image_meta_dict"]["filename_or_obj"][0])
                     label_name = os.path.basename(inf_sample["label_meta_dict"]["filename_or_obj"][0])
@@ -381,7 +381,7 @@ if __name__ == '__main__':
                     # Inference
                     fake_B, rec_A, fake_A, rec_B = model.test_forward(overlap=0.3)
                     assert inf_affine == label_affine
-                    print(fake_B.shape)
+                    # print(fake_B.shape)
                     # Saving
                     save_img(fake_B.cpu().detach().squeeze().numpy(),
                              inf_affine,
