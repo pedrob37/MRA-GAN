@@ -325,7 +325,7 @@ if __name__ == '__main__':
 
                             if total_steps % opt.save_latest_freq == 0:
                                 print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
-                                model.save_networks('latest')
+                                model.save_networks(epoch, current_iter=total_steps, models_dir=MODELS_DIR, current_fold=fold)
 
                         # Log validation performance
                         model.write_logs(training=False,
