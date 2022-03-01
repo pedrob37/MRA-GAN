@@ -103,12 +103,20 @@ class CycleGANModel(BaseModel):
 
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
-            self.netD_A = networks3D.define_D(opt.output_nc, opt.ndf, opt.netD,
-                                              opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain,
-                                              self.gpu_ids)
-            self.netD_B = networks3D.define_D(opt.input_nc, opt.ndf, opt.netD,
-                                              opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain,
-                                              self.gpu_ids)
+            if not self.opt.coordconv:
+                self.netD_A = networks3D.define_D(opt.output_nc, opt.ndf, opt.netD,
+                                                  opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain,
+                                                  self.gpu_ids)
+                self.netD_B = networks3D.define_D(opt.input_nc, opt.ndf, opt.netD,
+                                                  opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain,
+                                                  self.gpu_ids)
+            else:
+                self.netD_A = networks3D.define_D(1, opt.ndf, opt.netD,
+                                                  opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain,
+                                                  self.gpu_ids)
+                self.netD_B = networks3D.define_D(1, opt.ndf, opt.netD,
+                                                  opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain,
+                                                  self.gpu_ids)
 
         if self.isTrain:
             self.fake_A_pool = ImagePool(opt.pool_size)
@@ -170,14 +178,14 @@ class CycleGANModel(BaseModel):
     def backward_D_basic(self, netD, real, fake, real_label_flip_chance=0.25):
         # print(f"The label flipping chance is {real_label_flip_chance}")
         # Real
-        pred_real = netD(real)
+        pred_real = netD(real[:, 0, ...][:, None, ...])
         flip_labels = np.random.uniform(0, 1)
         if flip_labels < real_label_flip_chance:
             loss_D_real = self.criterionGAN(pred_real, False)
         else:
             loss_D_real = self.criterionGAN(pred_real, True)
         # Fake
-        pred_fake = netD(fake.detach())
+        pred_fake = netD(fake[:, 0, ...][:, None, ...].detach())
         loss_D_fake = self.criterionGAN(pred_fake, False)
         # Combined loss
         loss_D = (loss_D_real + loss_D_fake) * 0.5
