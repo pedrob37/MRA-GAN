@@ -164,15 +164,23 @@ class CycleGANModel(BaseModel):
         fake_B = sliding_window_inference(self.real_A.to(device), 160, 1, self.netG_A,
                                           overlap=overlap,
                                           mode='gaussian')
-        rec_A = sliding_window_inference(torch.cat((fake_B.to(device), self.coords), dim=1), 160, 1, self.netG_B,
-                                         overlap=overlap,
-                                         mode='gaussian')
         fake_A = sliding_window_inference(self.real_B.to(device), 160, 1, self.netG_B,
                                           overlap=overlap,
                                           mode='gaussian')
-        rec_B = sliding_window_inference(torch.cat((fake_A.to(device), self.coords), dim=1), 160, 1, self.netG_A,
-                                         overlap=overlap,
-                                         mode='gaussian')
+        if not self.opt.coordconv:
+            rec_A = sliding_window_inference(fake_B.to(device), 160, 1, self.netG_B,
+                                             overlap=overlap,
+                                             mode='gaussian')
+            rec_B = sliding_window_inference(fake_A.to(device), 160, 1, self.netG_A,
+                                             overlap=overlap,
+                                             mode='gaussian')
+        else:
+            rec_A = sliding_window_inference(torch.cat((fake_B.to(device), self.coords), dim=1), 160, 1, self.netG_B,
+                                             overlap=overlap,
+                                             mode='gaussian')
+            rec_B = sliding_window_inference(torch.cat((fake_A.to(device), self.coords), dim=1), 160, 1, self.netG_A,
+                                             overlap=overlap,
+                                             mode='gaussian')
         return fake_B, rec_A, fake_A, rec_B
 
     def backward_D_basic(self, netD, real, fake, real_label_flip_chance=0.25):
