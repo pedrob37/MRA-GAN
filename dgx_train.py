@@ -285,7 +285,7 @@ if __name__ == '__main__':
                     if total_steps % opt.save_latest_freq == 0:
                         losses = model.get_current_losses()
                         print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
-                        model.save_networks(epoch, current_iter=total_steps, models_dir=MODELS_DIR)
+                        model.save_networks(epoch, current_iter=total_steps, models_dir=MODELS_DIR, current_fold=fold)
 
                     if total_steps % 250 == 0:
                         model.write_logs(training=True,
@@ -300,7 +300,7 @@ if __name__ == '__main__':
 
                 if epoch % opt.save_epoch_freq == 0:
                     # model.save_networks('latest')
-                    model.save_networks(epoch, current_iter=total_steps, models_dir=MODELS_DIR)
+                    model.save_networks(epoch, current_iter=total_steps, models_dir=MODELS_DIR, current_fold=fold)
 
                 if epoch % val_gap == 0:
                     model.eval()

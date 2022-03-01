@@ -95,9 +95,9 @@ class BaseModel():
         return errors_ret
 
     # Save models to the disk
-    def save_networks(self, which_epoch, current_iter, models_dir):
+    def save_networks(self, which_epoch, current_iter, current_fold, models_dir):
         # Define ONE file for saving ALL state dicts
-        save_filename = f'epoch_{which_epoch}_checkpoint_iters_{current_iter}.pth'
+        save_filename = f'epoch_{which_epoch}_checkpoint_iters_{current_iter}_fold_{current_fold}.pth'
         current_state_dict = {'gen_optimizer_state_dict': self.optimizer_G.state_dict(),
                               'disc_optimizer_state_dict': self.optimizer_D.state_dict(),
                               'epoch': which_epoch,
