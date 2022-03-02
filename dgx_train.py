@@ -352,8 +352,7 @@ if __name__ == '__main__':
 
                     # Inference
                     fake_B, rec_A, fake_A, rec_B = model.test_forward(overlap=0.3)
-                    assert inf_affine == label_affine
-                    print(fake_B.shape)
+
                     # Saving
                     save_img(fake_B.cpu().detach().squeeze().numpy(),
                              inf_affine,
