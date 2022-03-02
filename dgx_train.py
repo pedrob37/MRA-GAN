@@ -351,18 +351,22 @@ if __name__ == '__main__':
                     del inf_image, inf_label, inf_sample
 
                     # Inference
-                    fake_B, rec_A, fake_A, rec_B = model.test_forward(overlap=0.3)
+                    fake_B, rec_A, fake_A, rec_B = model.test_forward(overlap=0.0)
 
                     # Saving
-                    save_img(fake_B.cpu().detach().squeeze().numpy(),
+                    def normalise_images(array):
+                        import numpy as np
+                        return (array - np.min(array)) / (np.max(array) - np.min(array))
+                    
+                    save_img(normalise_images(fake_B.cpu().detach().squeeze().numpy()),
                              inf_affine,
                              os.path.join(FIG_DIR, "Fake_B_" + os.path.basename(image_name)))
-                    save_img(rec_A.cpu().detach().squeeze().numpy(),
-                             inf_affine,
-                             os.path.join(FIG_DIR, "Rec_A_" + os.path.basename(image_name)))
-                    save_img(fake_A.cpu().detach().squeeze().numpy(),
+                    # save_img(normalise_images(rec_A.cpu().detach().squeeze().numpy()),
+                    #          inf_affine,
+                    #          os.path.join(FIG_DIR, "Rec_A_" + os.path.basename(image_name)))
+                    save_img(normalise_images(fake_A.cpu().detach().squeeze().numpy()),
                              inf_affine,
                              os.path.join(FIG_DIR, "Fake_A_" + os.path.basename(label_name)))
-                    save_img(rec_B.cpu().detach().squeeze().numpy(),
-                             inf_affine,
-                             os.path.join(FIG_DIR, "Rec_B_" + os.path.basename(label_name)))
+                    # save_img(normalise_images(rec_B.cpu().detach().squeeze().numpy()),
+                    #          inf_affine,
+                    #          os.path.join(FIG_DIR, "Rec_B_" + os.path.basename(label_name)))

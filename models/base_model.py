@@ -225,6 +225,20 @@ class BaseModel():
                                              max_out=current_opt.patch_size // 4,
                                              scale_factor=255, global_step=step)
 
+        # import nibabel as nib
+        # import os
+        #
+        # def save_img(image, affine, filename):
+        #     nifti_img = nib.Nifti1Image(image, affine)
+        #     if os.path.exists(filename):
+        #         raise OSError("File already exists! Killing job")
+        #     else:
+        #         nib.save(nifti_img, filename)
+        #
+        # import numpy as np
+        # rand_num = np.random.randint(10000)
+        # save_img(self.normalise_images(self.fake_A[0, 0, ...].cpu().detach().numpy()), None, f"/nfs/home/pedro/Outputs-MRA-GAN/fake_A_{rand_num}.nii.gz")
+        # save_img(self.normalise_images(self.fake_B[0, 0, ...].cpu().detach().numpy()), None, f"/nfs/home/pedro/Outputs-MRA-GAN/fake_B_{rand_num}.nii.gz")
 
     def __patch_instance_norm_state_dict(self, state_dict, module, keys, i=0):
         key = keys[i]
