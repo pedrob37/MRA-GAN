@@ -327,6 +327,13 @@ if __name__ == '__main__':
                                 print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
                                 model.save_networks(epoch, current_iter=total_steps, models_dir=MODELS_DIR, current_fold=fold)
 
+                        # Saving validation images
+                        model.write_images(training=False,
+                                           step=total_steps,
+                                           current_writer=writer,
+                                           current_opt=opt,
+                                           current_fold=fold)
+
                         # Log validation performance
                         model.write_logs(training=False,
                                          step=total_steps,
