@@ -88,17 +88,40 @@ class CycleGANModel(BaseModel):
         # load/define networks
         # The naming conversion is different from those used in the paper
         # Code (paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
-        self.netG_A = networks3D.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,   # nc number channels
-                                        not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
-        self.netG_B = networks3D.define_G(opt.output_nc, opt.input_nc, opt.ngf, opt.netG, opt.norm,
-                                        not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+        # self.netG_A = networks3D.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,   # nc number channels
+        #                                 not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+        # self.netG_B = networks3D.define_G(opt.output_nc, opt.input_nc, opt.ngf, opt.netG, opt.norm,
+        #                                 not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+        if not self.opt.coordconv:
+            self.netG_A = networks3D.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
+                                              # nc number channels
+                                              not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+            self.netG_B = networks3D.define_G(opt.output_nc, opt.input_nc, opt.ngf, opt.netG, opt.norm,
+                                              not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+        else:
+            self.netG_A = networks3D.define_G(4, opt.output_nc, opt.ngf, opt.netG, opt.norm,
+                                              # nc number channels
+                                              not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+            self.netG_B = networks3D.define_G(4, opt.input_nc, opt.ngf, opt.netG, opt.norm,
+                                              not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+
 
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
-            self.netD_A = networks3D.define_D(opt.output_nc, opt.ndf, opt.netD,
-                                            opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain, self.gpu_ids)
-            self.netD_B = networks3D.define_D(opt.input_nc, opt.ndf, opt.netD,
-                                            opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain, self.gpu_ids)
+            if not self.opt.coordconv:
+                self.netD_A = networks3D.define_D(opt.output_nc, opt.ndf, opt.netD,
+                                                  opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain,
+                                                  self.gpu_ids)
+                self.netD_B = networks3D.define_D(opt.input_nc, opt.ndf, opt.netD,
+                                                  opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain,
+                                                  self.gpu_ids)
+            else:
+                self.netD_A = networks3D.define_D(1, opt.ndf, opt.netD,
+                                                  opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain,
+                                                  self.gpu_ids)
+                self.netD_B = networks3D.define_D(1, opt.ndf, opt.netD,
+                                                  opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, opt.init_gain,
+                                                  self.gpu_ids)
 
         if self.isTrain:
             self.fake_A_pool = ImagePool(opt.pool_size)
@@ -120,7 +143,8 @@ class CycleGANModel(BaseModel):
         AtoB = self.opt.which_direction == 'AtoB'
         self.real_A = input[0 if AtoB else 1].to(self.device)
         self.real_B = input[1 if AtoB else 0].to(self.device)
-        # self.image_paths = input['A_paths' if AtoB else 'B_paths']
+        if self.opt.coordconv:
+            self.coords = input[2].to(self.device)
 
     def forward(self):
         ## old
@@ -132,12 +156,23 @@ class CycleGANModel(BaseModel):
         ## end of old
 
         # chin
-        self.fake_B = self.netG_A(self.real_A.to(device))
-        self.rec_A = self.netG_B(self.fake_B.to(device))
-
-        self.fake_A = self.netG_B(self.real_B.to(device))
-        self.rec_B = self.netG_A(self.fake_A.to(device))
+        # self.fake_B = self.netG_A(self.real_A.to(device))
+        # self.rec_A = self.netG_B(self.fake_B.to(device))
+        #
+        # self.fake_A = self.netG_B(self.real_B.to(device))
+        # self.rec_B = self.netG_A(self.fake_A.to(device))
         # end of chin
+
+        self.fake_B = self.netG_A(self.real_A.to(device))
+        self.fake_A = self.netG_B(self.real_B.to(device))
+
+        if not self.opt.coordconv:
+            self.rec_A = self.netG_B(self.fake_B.to(device))
+            self.rec_B = self.netG_A(self.fake_A.to(device))
+        else:
+            self.rec_A = self.netG_B(torch.cat((self.fake_B.to(device), self.coords), dim=1))
+            self.rec_B = self.netG_A(torch.cat((self.fake_A.to(device), self.coords), dim=1))
+
 
     def test_forward(self, overlap=0.3):
         from monai.inferers import sliding_window_inference
