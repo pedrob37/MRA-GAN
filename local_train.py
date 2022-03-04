@@ -289,23 +289,23 @@ if __name__ == '__main__':
                         losses = model.get_current_losses()
                         print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
                         model.save_networks(epoch, current_iter=total_steps, models_dir=MODELS_DIR, current_fold=fold)
-
-                    if total_steps % 250 == 0:
-                        model.write_logs(training=True,
-                                         step=total_steps,
-                                         current_writer=writer)
-                        model.write_images(training=True,
-                                           step=total_steps,
-                                           current_writer=writer,
-                                           current_opt=opt,
-                                           current_fold=fold)
+                    break
+                    # if total_steps % 250 == 0:
+                    #     model.write_logs(training=True,
+                    #                      step=total_steps,
+                    #                      current_writer=writer)
+                    #     model.write_images(training=True,
+                    #                        step=total_steps,
+                    #                        current_writer=writer,
+                    #                        current_opt=opt,
+                    #                        current_fold=fold)
                     iter_data_time = time.time()
 
                 if epoch % opt.save_epoch_freq == 0:
                     # model.save_networks('latest')
                     model.save_networks(epoch, current_iter=total_steps, models_dir=MODELS_DIR, current_fold=fold)
 
-                if epoch % val_gap == 0:
+                if epoch % 1 == 0:
                     model.eval()
                     with torch.no_grad():
                         for val_sample in val_loader:
@@ -331,16 +331,16 @@ if __name__ == '__main__':
                                 model.save_networks(epoch, current_iter=total_steps, models_dir=MODELS_DIR, current_fold=fold)
 
                         # Saving validation images
-                        model.write_images(training=False,
-                                           step=total_steps,
-                                           current_writer=writer,
-                                           current_opt=opt,
-                                           current_fold=fold)
-
-                        # Log validation performance
-                        model.write_logs(training=False,
-                                         step=total_steps,
-                                         current_writer=writer)
+                        # model.write_images(training=False,
+                        #                    step=total_steps,
+                        #                    current_writer=writer,
+                        #                    current_opt=opt,
+                        #                    current_fold=fold)
+                        #
+                        # # Log validation performance
+                        # model.write_logs(training=False,
+                        #                  step=total_steps,
+                        #                  current_writer=writer)
 
                 print(f'End of epoch {epoch} / {opt.niter} \t Time Taken: {time.time() - epoch_start_time:.3f} sec')
                 model.update_learning_rate()

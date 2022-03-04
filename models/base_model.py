@@ -147,14 +147,14 @@ class BaseModel():
         #       self.rec_B.shape,
         #       self.rec_A.shape,
         #       )
-        self.fake_B = self.netG_A(self.real_A.to(device))
-        self.fake_A = self.netG_B(self.real_B.to(device))
-        if not self.opt.coordconv:
-            self.rec_A = self.netG_B(self.fake_B.to(device))
-            self.rec_B = self.netG_A(self.fake_A.to(device))
-        else:
-            self.rec_A = self.netG_B(torch.cat((self.fake_B.to(device), self.coords), dim=1))
-            self.rec_B = self.netG_A(torch.cat((self.fake_A.to(device), self.coords), dim=1))
+        # self.fake_B = self.netG_A(self.real_A.to(device))
+        # self.fake_A = self.netG_B(self.real_B.to(device))
+        # if not self.opt.coordconv:
+        #     self.rec_A = self.netG_B(self.fake_B.to(device))
+        #     self.rec_B = self.netG_A(self.fake_A.to(device))
+        # else:
+        #     self.rec_A = self.netG_B(torch.cat((self.fake_B.to(device), self.coords), dim=1))
+        #     self.rec_B = self.netG_A(torch.cat((self.fake_A.to(device), self.coords), dim=1))
 
         if training:
             # Reals

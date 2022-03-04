@@ -109,9 +109,9 @@ class CycleGANModel(BaseModel):
             self.criterionIdt = torch.nn.L1Loss()
             # initialize optimizers
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
-                                                lr=opt.lr, betas=(opt.beta1, 0.999))
+                                                lr=opt.gen_lr, betas=(opt.gen_beta1, 0.999))
             self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()),
-                                                lr=opt.lr, betas=(opt.beta1, 0.999))
+                                                lr=opt.disc_lr, betas=(opt.disc_beta1, 0.999))
             self.optimizers = []
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
@@ -163,7 +163,7 @@ class CycleGANModel(BaseModel):
                                              mode='gaussian')
         return fake_B, rec_A, fake_A, rec_B
 
-    def backward_D_basic(self, netD, real, fake, real_label_flip_chance=0.25):
+    def backward_D_basic(self, netD, real, fake, real_label_flip_chance=0.25, training=True):
         # Real
         pred_real = netD(real)
         flip_labels = np.random.uniform(0, 1)
@@ -176,25 +176,28 @@ class CycleGANModel(BaseModel):
         loss_D_fake = self.criterionGAN(pred_fake, False)
         # Combined loss
         loss_D = (loss_D_real + loss_D_fake) * 0.5
-        # backward
-        loss_D.backward()
+        if training:
+            # backward
+            loss_D.backward()
         return loss_D
 
-    def backward_D_A(self):
+    def backward_D_A(self, training=True):
         #fake_B = self.fake_B_pool.query(self.fake_B)
         #self.loss_D_A = self.backward_D_basic(self.netD_A, self.real_B, fake_B)
         fake_B = self.fake_B_pool.query(self.fake_B.to(device))
         self.loss_D_A = self.backward_D_basic(self.netD_A.to(device), self.real_B.to(device), fake_B,
-                                              real_label_flip_chance=self.opt.label_flipping_chance)
+                                              real_label_flip_chance=self.opt.label_flipping_chance,
+                                              training=training)
 
-    def backward_D_B(self):
+    def backward_D_B(self, training=True):
         #fake_A = self.fake_A_pool.query(self.fake_A)
         #self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
         fake_A = self.fake_A_pool.query(self.fake_A.to(device))
         self.loss_D_B = self.backward_D_basic(self.netD_B.to(device), self.real_A.to(device), fake_A,
-                                              real_label_flip_chance=self.opt.label_flipping_chance)
+                                              real_label_flip_chance=self.opt.label_flipping_chance,
+                                              training=training)
 
-    def backward_G(self):
+    def backward_G(self, training=True):
         lambda_idt = self.opt.lambda_identity
         lambda_A = self.opt.lambda_A
         lambda_B = self.opt.lambda_B
@@ -256,19 +259,25 @@ class CycleGANModel(BaseModel):
         # combined loss
         # self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B + self.loss_cor_coe_GA + self.loss_cor_coe_GB
-        self.loss_G.backward()
+        if training:
+            self.loss_G.backward()
 
-    def optimize_parameters(self):
+    def optimize_parameters(self, training=True):
         # forward
         self.forward()
-        # G_A and G_B
-        self.set_requires_grad([self.netD_A, self.netD_B], False)
-        self.optimizer_G.zero_grad()
-        self.backward_G()
-        self.optimizer_G.step()
-        # D_A and D_B
-        self.set_requires_grad([self.netD_A, self.netD_B], True)
-        self.optimizer_D.zero_grad()
-        self.backward_D_A()
-        self.backward_D_B()
-        self.optimizer_D.step()
+        if training:
+            # G_A and G_B
+            self.set_requires_grad([self.netD_A, self.netD_B], False)
+            self.optimizer_G.zero_grad()
+        # Always do this so losses are calculated
+        self.backward_G(training=training)
+        if training:
+            self.optimizer_G.step()
+            # D_A and D_B
+            self.set_requires_grad([self.netD_A, self.netD_B], True)
+            self.optimizer_D.zero_grad()
+        # Always do this so losses are calculated
+        self.backward_D_A(training=training)
+        self.backward_D_B(training=training)
+        if training:
+            self.optimizer_D.step()
