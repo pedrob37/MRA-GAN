@@ -200,14 +200,20 @@ class CycleGANModel(BaseModel):
 
     def backward_D_basic(self, netD, real, fake, real_label_flip_chance=0.25, training=True):
         # Real
-        pred_real = netD(real)
+        if not self.opt.coordconv:
+            pred_real = netD(real)
+        else:
+            pred_real = netD(real[:, 0, ...][:, None, ...])
         flip_labels = np.random.uniform(0, 1)
         if flip_labels < real_label_flip_chance:
             loss_D_real = self.criterionGAN(pred_real, False)
         else:
             loss_D_real = self.criterionGAN(pred_real, True)
         # Fake
-        pred_fake = netD(fake.detach())
+        if not self.opt.coordconv:
+            pred_fake = netD(fake.detach())
+        else:
+            pred_fake = netD(fake[:, 0, ...][:, None, ...].detach())
         loss_D_fake = self.criterionGAN(pred_fake, False)
         # Combined loss
         loss_D = (loss_D_real + loss_D_fake) * 0.5
