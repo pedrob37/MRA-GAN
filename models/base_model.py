@@ -104,8 +104,9 @@ class BaseModel():
                               'running_iter': current_iter,
                               'batch_size': self.opt.batch_size,
                               'patch_size': self.opt.patch_size,
-                              'gen_scaler': self.gen_scaler.state_dict(),
-                              'disc_scaler': self.disc_scaler.state_dict()}
+                              # 'gen_scaler': self.gen_scaler.state_dict(),
+                              # 'disc_scaler': self.disc_scaler.state_dict()
+                              }
         for name in self.model_names:
             if isinstance(name, str):
                 save_path = os.path.join(models_dir, save_filename)
@@ -278,8 +279,8 @@ class BaseModel():
             # Scalers and optimizers
             self.optimizer_G.load_state_dict(checkpoint['gen_optimizer_state_dict'])
             self.optimizer_D.load_state_dict(checkpoint['disc_optimizer_state_dict'])
-            self.gen_scaler.load_state_dict(checkpoint['gen_scaler'])
-            self.disc_scaler.load_state_dict(checkpoint['disc_scaler'])
+            # self.gen_scaler.load_state_dict(checkpoint['gen_scaler'])
+            # self.disc_scaler.load_state_dict(checkpoint['disc_scaler'])
 
         # Networks loading
         for name in self.model_names:
