@@ -142,3 +142,163 @@ class CoordConvd(MapTransform):
         for key in self.key_iterator(d):
             d["coords"] = self.coord_conv(d[key])
         return d
+
+    # Save models to the disk
+    def save_networks(self, which_epoch, current_iter, current_fold, models_dir, opt):
+        # Define ONE file for saving ALL state dicts
+        G_A.cpu()
+        G_B.cpu()
+        D_A.cpu()
+        D_B.cpu()
+        save_filename = f'epoch_{which_epoch}_checkpoint_iters_{current_iter}_fold_{current_fold}.pth'
+        current_state_dict = {
+                              'G_A_optimizer_state_dict': G_A_optimizer.state_dict(),
+                              'D_A_optimizer_state_dict': D_A_optimizer.state_dict(),
+                              'G_B_optimizer_state_dict': G_B_optimizer.state_dict(),
+                              'D_B_optimizer_state_dict': D_B_optimizer.state_dict(),
+                              'epoch': which_epoch,
+                              'running_iter': current_iter,
+                              'batch_size': opt.batch_size,
+                              'patch_size': opt.patch_size,
+                              'G_A_state_dict': G_A.state_dict(),
+                              'G_B_state_dict': G_B.state_dict(),
+                              'D_A_state_dict': D_A.state_dict(),
+                              'D_B_state_dict': D_B.state_dict(),
+                              }
+        G_A.cuda()
+        G_B.cuda()
+        D_A.cuda()
+        D_B.cuda()
+        for name in self.model_names:
+            if isinstance(name, str):
+                save_path = os.path.join(models_dir, save_filename)
+                net = getattr(self, 'net' + name)
+                net.cpu()
+                if torch.cuda.is_available():
+                    current_state_dict[f'net_{name}_state_dict'] = net.state_dict()
+                    net.cuda()
+        # Save aggregated checkpoint file
+        torch.save(current_state_dict, save_path)
+
+    def write_logs(self, training=True, step=None, current_writer=None):
+        losses = self.get_current_losses()
+        if training:
+            current_writer.add_scalars('Loss/Adversarial',
+                                       {"Generator_A": losses["G_A"],
+                                        "Generator_B": losses["G_B"],
+                                        "Discriminator_A": losses["D_A"],
+                                        "Discriminator_B": losses["D_B"]}, step)
+        else:
+            current_writer.add_scalars('Loss/Val_Adversarial',
+                                       {"Generator_A": losses["G_A"],
+                                        "Generator_B": losses["G_B"],
+                                        "Discriminator_A": losses["D_A"],
+                                        "Discriminator_B": losses["D_B"]}, step)
+
+    @ staticmethod
+    def normalise_images(array):
+        import numpy as np
+        return (array - np.min(array)) / (np.max(array) - np.min(array))
+
+    def write_images(self, training=True, step=None, current_writer=None, current_opt=None, current_fold=None):
+        # Shape checks
+        # print("Basic input and output shape checks!")
+        # print(self.real_B.shape,
+        #       self.real_A.shape,
+        #       self.fake_B.shape,
+        #       self.fake_A.shape,
+        #       self.rec_B.shape,
+        #       self.rec_A.shape,
+        #       )
+        # self.fake_B = self.netG_A(self.real_A.to(device))
+        # self.fake_A = self.netG_B(self.real_B.to(device))
+        # if not self.opt.coordconv:
+        #     self.rec_A = self.netG_B(self.fake_B.to(device))
+        #     self.rec_B = self.netG_A(self.fake_A.to(device))
+        # else:
+        #     self.rec_A = self.netG_B(torch.cat((self.fake_B.to(device), self.coords), dim=1))
+        #     self.rec_B = self.netG_A(torch.cat((self.fake_A.to(device), self.coords), dim=1))
+
+        if training:
+            # Reals
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.real_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Visuals/Real_B_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.real_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Visuals/Real_A_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+
+            # Generated
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.fake_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Visuals/Fake_B_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.fake_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Visuals/Fake_A_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.rec_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Visuals/Rec_B_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.rec_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Visuals/Rec_A_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+        else:
+            # Reals
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.real_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Validation/Real_B_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.real_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Validation/Real_A_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+
+            # Generated
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.fake_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Validation/Fake_B_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.fake_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Validation/Fake_A_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.rec_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Validation/Rec_B_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+            img2tensorboard.add_animated_gif(writer=current_writer,
+                                             image_tensor=self.normalise_images(self.rec_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                             tag=f'Validation/Rec_A_fold_{current_fold}',
+                                             max_out=current_opt.patch_size // 4,
+                                             scale_factor=255, global_step=step)
+
+        # import nibabel as nib
+        # import os
+        #
+        # def save_img(image, affine, filename):
+        #     nifti_img = nib.Nifti1Image(image, affine)
+        #     if os.path.exists(filename):
+        #         raise OSError("File already exists! Killing job")
+        #     else:
+        #         nib.save(nifti_img, filename)
+        #
+        # import numpy as np
+        # rand_num = np.random.randint(10000)
+        # save_img(self.normalise_images(self.fake_A[0, 0, ...].cpu().detach().numpy()), None, f"/nfs/home/pedro/Outputs-MRA-GAN/fake_A_{rand_num}.nii.gz")
+        # save_img(self.normalise_images(self.fake_B[0, 0, ...].cpu().detach().numpy()), None, f"/nfs/home/pedro/Outputs-MRA-GAN/fake_B_{rand_num}.nii.gz")
