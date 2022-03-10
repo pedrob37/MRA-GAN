@@ -410,7 +410,7 @@ if __name__ == '__main__':
                 epoch_iter = 0
 
                 # Iterations
-                for i, train_sample in enumerate(train_loader):
+                for _, train_sample in enumerate(train_loader):
                     iter_start_time = time.time()
                     if total_steps % opt.print_freq == 0:
                         t_data = iter_start_time - iter_data_time
@@ -547,9 +547,6 @@ if __name__ == '__main__':
                         # G optimization
                         G_optimizer.step()
 
-                    # Clean-up
-                    del real_A, real_B, train_sample, real_z
-
                     # if total_steps % opt.print_freq == 0:
                     if total_steps % opt.save_latest_freq == 0:
                         print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
@@ -620,6 +617,12 @@ if __name__ == '__main__':
                                                          tag=f'Visuals/Real_A_fold_{fold}',
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(
+                                                             real_z[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Visuals/Real_z_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
 
                         # Generated
                         img2tensorboard.add_animated_gif(writer=writer,
@@ -646,8 +649,17 @@ if __name__ == '__main__':
                                                          tag=f'Visuals/Rec_A_fold_{fold}',
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(
+                                                             fake_z[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Visuals/Fake_z_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
                     iter_data_time = time.time()
                     running_iter += 1
+
+                    # Clean-up
+                    del real_A, real_B, train_sample, real_z, rec_A, rec_B, rec_z
 
                 if epoch % val_gap == 0:
                     G_A.eval()
@@ -751,6 +763,11 @@ if __name__ == '__main__':
                                                          tag=f'Validation/Real_A_fold_{fold}',
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(val_real_z[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Validation/Real_z_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
 
                         # Generated
                         img2tensorboard.add_animated_gif(writer=writer,
@@ -773,6 +790,14 @@ if __name__ == '__main__':
                                                          tag=f'Validation/Rec_A_fold_{fold}',
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(val_fake_z[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Validation/Fake_z_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+
+                        # Clean-up
+                        del val_real_A, val_real_B, val_sample, val_real_z, val_rec_A, val_rec_B, val_rec_z
 
                 print(f'End of epoch {epoch} / {opt.niter} \t Time Taken: {time.time() - epoch_start_time:.3f} sec')
                 G_scheduler.step(epoch)
