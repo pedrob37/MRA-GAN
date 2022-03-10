@@ -72,6 +72,10 @@ if __name__ == '__main__':
     criterionCycle = torch.nn.L1Loss()
     criterionIdt = torch.nn.L1Loss()
 
+    def normalise_images(array):
+        import numpy as np
+        return (array - np.min(array)) / (np.max(array) - np.min(array))
+
     def discriminator_loss(gen_images, real_images, discriminator, real_label_flip_chance=0.25):
         """
         The discriminator loss is calculated by comparing Discriminator
