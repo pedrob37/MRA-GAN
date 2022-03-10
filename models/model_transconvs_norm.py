@@ -65,7 +65,7 @@ class nnUNet(nn.Module):
                 )
         return block
 
-    def final_block(self, mid_channel, out_channels, kernel_size=3, unc_flag=False):
+    def final_block(self, mid_channel, out_channels, kernel_size=3, unc_flag=False, final_act=torch.nn.LeakyReLU()):
         """
         This returns final block
         """
@@ -76,12 +76,12 @@ class nnUNet(nn.Module):
                                     out_channels=out_channels,
                                     padding=1),
                     # final_act,
-                    torch.nn.LeakyReLU(),
+                    final_act,
                     # torch.nn.BatchNorm3d(out_channels),
                     )
         return block
 
-    def __init__(self, in_channel, out_channel, dropout_level=0.0, z_concat_flag=False, z_output=0):
+    def __init__(self, in_channel, out_channel, dropout_level=0.0, z_concat_flag=False, z_output=0, final_act=torch.nn.LeakyReLU()):
         # Encode
         super(nnUNet, self).__init__()
 
@@ -92,7 +92,7 @@ class nnUNet(nn.Module):
         self.z_concat_flag = z_concat_flag
 
         # Final activation
-        # self.final_act = final_act
+        self.final_act = final_act
 
         if dropout_level != 0.0:
             exclusive_dropout = 0.05
@@ -123,15 +123,12 @@ class nnUNet(nn.Module):
                             # torch.nn.BatchNorm3d(512),
                             )
 
-        # Concatenation for F network
-
-
         # Decode
         self.conv_decode3 = self.expansive_block(480, 240, 120, block_dropout=dropout_level)
         self.conv_decode2 = self.expansive_block(240, 120, 60, block_dropout=dropout_level)
         self.conv_decode1 = self.expansive_block(120, 60, 30, block_dropout=dropout_level)
         self.penultimate_layer = self.penultimate_block(60, 30, block_dropout=exclusive_dropout)
-        self.final_layer = self.final_block(30, out_channel, unc_flag=False)
+        self.final_layer = self.final_block(30, out_channel, unc_flag=False, final_act=final_act)
 
     def crop_and_concat(self, upsampled, bypass, crop=False):
         """

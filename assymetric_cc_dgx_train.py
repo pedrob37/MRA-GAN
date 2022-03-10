@@ -245,7 +245,11 @@ if __name__ == '__main__':
         # betas_disc = (0.5,
         #               0.999)  # Consider 0.5 for beta1! https://machinelearningmastery.com/how-to-train-stable-generative-adversarial-networks/
         # Generators
-        G_A = nnUNet(1, 1, dropout_level=0)
+        if opt.final_act == "leaky":
+            G_A_final_act = torch.nn.LeakyReLU()
+        elif opt.final_act == "sigmoid":
+            G_A_final_act = torch.nn.Sigmoid()
+        G_A = nnUNet(1, 1, dropout_level=0, final_act=G_A_final_act)
         G_B = nnUNet(1, 1, dropout_level=0)
 
         # Encoder
