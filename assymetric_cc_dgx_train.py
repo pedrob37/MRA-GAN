@@ -475,15 +475,15 @@ if __name__ == '__main__':
                             D_B_loss, real_D_B_acc, fake_D_B_acc, _, fake_D_B_out = discriminator_loss(gen_images=fake_B,
                                                                                                        real_images=real_B,
                                                                                                        discriminator=D_B,
-                                                                                                       real_label_flip_chance=opt.real_label_flipping_chance)
+                                                                                                       real_label_flip_chance=opt.label_flipping_chance)
                             D_A_loss, real_D_A_acc, fake_D_A_acc, _, fake_D_A_out = discriminator_loss(gen_images=fake_A,
                                                                                                        real_images=real_A,
                                                                                                        discriminator=D_A,
-                                                                                                       real_label_flip_chance=opt.real_label_flipping_chance)
+                                                                                                       real_label_flip_chance=opt.label_flipping_chance)
                             D_z_loss, real_D_z_acc, fake_D_z_acc, _, fake_D_z_out = discriminator_loss(gen_images=fake_z,
                                                                                                        real_images=real_z,
                                                                                                        discriminator=D_z,
-                                                                                                       real_label_flip_chance=opt.real_label_flipping_chance)
+                                                                                                       real_label_flip_chance=opt.label_flipping_chance)
 
                             # if overall_disc_acc < disc_acc_thr_upper:
                             D_optimizer.zero_grad()
