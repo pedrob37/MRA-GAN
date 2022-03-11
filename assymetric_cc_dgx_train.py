@@ -539,9 +539,9 @@ if __name__ == '__main__':
                         G_z_loss = generator_loss(gen_images=fake_z, discriminator=D_z)
 
                         # Cycle losses: G_A and G_B and G_z
-                        A_cycle = criterionCycle(rec_A, real_A)
-                        B_cycle = criterionCycle(rec_B, real_B)
-                        z_cycle = criterionCycle(rec_z, real_z)
+                        A_cycle = criterionCycle(rec_A, real_A) * opt.lambda_cycle
+                        B_cycle = criterionCycle(rec_B, real_B) * opt.lambda_cycle
+                        z_cycle = criterionCycle(rec_z, real_z) * opt.lambda_cycle
 
                         # Idt losses
                         # idt_A_loss = criterionIdt(idt_A, real_B)
