@@ -253,7 +253,7 @@ if __name__ == '__main__':
             G_A_final_act = torch.nn.LeakyReLU()
         elif opt.final_act == "sigmoid":
             G_A_final_act = torch.nn.Sigmoid()
-        G_A = nnUNet(1, 1, dropout_level=0, final_act=G_A_final_act)
+        G_A = nnUNet(1, 1, dropout_level=0, final_act=G_A_final_act, z_concat_flag=True, z_output=128)
         G_B = nnUNet(1, 1, dropout_level=0)
 
         # Encoder

@@ -14,6 +14,7 @@ import torch.nn as nn
 from models.model_transconvs_norm import nnUNet
 from models.pix2pix_disc_networks import NoisyMultiscaleDiscriminator3D, GANLoss
 import monai.visualize.img2tensorboard as img2tensorboard
+from models.resnets import resnet10
 from monai.transforms import (Compose,
                               LoadImaged,
                               AddChanneld,
@@ -57,7 +58,7 @@ if __name__ == '__main__':
 
     # Losses
     # Define discriminator loss and other related variables
-    real_label = 1
+    real_label = opt.real_label
     fake_label = 0
 
     # Pix2PixHD loss setup
@@ -70,6 +71,10 @@ if __name__ == '__main__':
     # Other cycle/ idt losses
     criterionCycle = torch.nn.L1Loss()
     criterionIdt = torch.nn.L1Loss()
+
+    def normalise_images(array):
+        import numpy as np
+        return (array - np.min(array)) / (np.max(array) - np.min(array))
 
     def discriminator_loss(gen_images, real_images, discriminator, real_label_flip_chance=0.25):
         """
@@ -93,19 +98,22 @@ if __name__ == '__main__':
             0, ...].nelement()
         fake_disc_sum_ds1 = fake_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[0][0][
             0, ...].nelement()
-        real_disc_sum_ds2 = real_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[1][0][
-            0, ...].nelement()
-        fake_disc_sum_ds2 = fake_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[1][0][
-            0, ...].nelement()
+        # real_disc_sum_ds2 = real_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[1][0][
+        #     0, ...].nelement()
+        # fake_disc_sum_ds2 = fake_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[1][0][
+        #     0, ...].nelement()
 
         real_disc_accuracy_ds1 = ((real_disc_sum_ds1 > 0.5) == real_label).float().sum() / real_images.shape[0]
         fake_disc_accuracy_ds1 = ((fake_disc_sum_ds1 > 0.5) == fake_label).float().sum() / real_images.shape[0]
-        real_disc_accuracy_ds2 = ((real_disc_sum_ds2 > 0.5) == real_label).float().sum() / real_images.shape[0]
-        fake_disc_accuracy_ds2 = ((fake_disc_sum_ds2 > 0.5) == fake_label).float().sum() / real_images.shape[0]
+        # real_disc_accuracy_ds2 = ((real_disc_sum_ds2 > 0.5) == real_label).float().sum() / real_images.shape[0]
+        # fake_disc_accuracy_ds2 = ((fake_disc_sum_ds2 > 0.5) == fake_label).float().sum() / real_images.shape[0]
+
+        # (real_disc_accuracy_ds1 + real_disc_accuracy_ds2) / 2, \
+        # (fake_disc_accuracy_ds1 + fake_disc_accuracy_ds2) / 2, \
 
         return (genloss + realloss) / 2, \
-               (real_disc_accuracy_ds1 + real_disc_accuracy_ds2) / 2, \
-               (fake_disc_accuracy_ds1 + fake_disc_accuracy_ds2) / 2, \
+               real_disc_accuracy_ds1, \
+               fake_disc_accuracy_ds1, \
                real_disc_prediction, fake_disc_prediction
 
 
@@ -127,17 +135,17 @@ if __name__ == '__main__':
                                                     scale_range=(0.1, 0.1, 0.1),
                                                     rotate_range=(0.25, 0.25, 0.25),
                                                     translate_range=(20, 20, 20),
-                                                    mode=("nearest", "bilinear"),
+                                                    mode=("bilinear", "nearest"),
                                                     as_tensor_output=False, prob=1.0,
                                                     padding_mode=('zeros', 'zeros')),
-                                        RandGaussianSmoothd(keys=["label"], prob=0.25,  # 0.2
+                                        RandGaussianSmoothd(keys=["image"], prob=0.25,  # 0.2
                                                             sigma_x=(0.25, 0.3),
                                                             sigma_y=(0.25, 0.3),
                                                             sigma_z=(0.25, 0.3)),
-                                        RandBiasFieldd(keys=["label"], degree=3, coeff_range=(0.1, 0.25),
+                                        RandBiasFieldd(keys=["image"], degree=3, coeff_range=(0.1, 0.25),
                                                        prob=0.25),  # Odd behaviour...
-                                        NormalizeIntensityd(keys=['label'], channel_wise=True),
-                                        RandGaussianNoiseD(keys=["label"], std=0.2, prob=0.5),
+                                        NormalizeIntensityd(keys=['image'], channel_wise=True),
+                                        RandGaussianNoiseD(keys=["image"], std=0.2, prob=0.5),
                                         RandSpatialCropSamplesd(keys=["image", "label"],
                                                                 roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                                 random_center=True,
@@ -151,10 +159,10 @@ if __name__ == '__main__':
                                                     scale_range=(0.1, 0.1, 0.1),
                                                     rotate_range=(0.25, 0.25, 0.25),
                                                     translate_range=(20, 20, 20),
-                                                    mode=("nearest", "bilinear"),
+                                                    mode=("bilinear", "nearest"),
                                                     as_tensor_output=False, prob=1.0,
                                                     padding_mode=('zeros', 'zeros')),
-                                        NormalizeIntensityd(keys=['label'], channel_wise=True),
+                                        NormalizeIntensityd(keys=['image'], channel_wise=True),
                                         RandSpatialCropSamplesd(keys=["image", "label"],
                                                                 roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                                 random_center=True,
@@ -164,7 +172,7 @@ if __name__ == '__main__':
         elif opt.augmentation_level == "none":
             train_transforms = Compose([LoadImaged(keys=['image', 'label']),
                                         AddChanneld(keys=['image', 'label']),
-                                        NormalizeIntensityd(keys=['label'], channel_wise=True),
+                                        NormalizeIntensityd(keys=['image'], channel_wise=True),
                                         RandSpatialCropSamplesd(keys=["image", "label"],
                                                                 roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                                 random_center=True,
@@ -174,7 +182,7 @@ if __name__ == '__main__':
 
         val_transforms = Compose([LoadImaged(keys=['image', 'label']),
                                   AddChanneld(keys=['image', 'label']),
-                                  NormalizeIntensityd(keys=['label'], channel_wise=True),
+                                  NormalizeIntensityd(keys=['image'], channel_wise=True),
                                   RandSpatialCropSamplesd(keys=["image", "label"],
                                                           roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                           random_center=True,
@@ -194,7 +202,7 @@ if __name__ == '__main__':
                                   #                         num_samples=1),
                                   # SpatialPadd(keys=["image", "label"],
                                   #             spatial_size=opt.patch_size),
-                                  NormalizeIntensityd(keys=['label'], channel_wise=True),
+                                  NormalizeIntensityd(keys=['image'], channel_wise=True),
                                   ToTensord(keys=['image', 'label'])])
 
     ## Relevant job directories
@@ -241,8 +249,12 @@ if __name__ == '__main__':
         # betas_disc = (0.5,
         #               0.999)  # Consider 0.5 for beta1! https://machinelearningmastery.com/how-to-train-stable-generative-adversarial-networks/
         # Generators
-        G_A = nnUNet(1, opt.num_classes, dropout_level=opt.dropout_level)
-        G_B = nnUNet(1, opt.num_classes, dropout_level=opt.dropout_level)
+        if opt.final_act == "leaky":
+            G_A_final_act = torch.nn.LeakyReLU()
+        elif opt.final_act == "sigmoid":
+            G_A_final_act = torch.nn.Sigmoid()
+        G_A = nnUNet(1, 1, dropout_level=0, final_act=G_A_final_act)
+        G_B = nnUNet(1, 1, dropout_level=0)
 
         # Discriminators
         D_A = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
@@ -367,6 +379,10 @@ if __name__ == '__main__':
             total_steps = 0
         visualizer = Visualizer(opt)
 
+        # Z distribution
+        z_sampler = torch.distributions.Normal(torch.tensor(0.0).to(device=torch.device("cuda:0")),
+                                               torch.tensor(1.0).to(device=torch.device("cuda:0")))
+
         if opt.phase == "train":
             # Epochs
             for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
@@ -375,12 +391,13 @@ if __name__ == '__main__':
                 G_B.train()
                 D_A.train()
                 D_B.train()
+
                 epoch_start_time = time.time()
                 iter_data_time = time.time()
                 epoch_iter = 0
 
                 # Iterations
-                for i, train_sample in enumerate(train_loader):
+                for _, train_sample in enumerate(train_loader):
                     iter_start_time = time.time()
                     if total_steps % opt.print_freq == 0:
                         t_data = iter_start_time - iter_data_time
@@ -398,17 +415,19 @@ if __name__ == '__main__':
                     image_name = os.path.basename(train_sample[0]["image_meta_dict"]["filename_or_obj"][0])
                     label_name = os.path.basename(train_sample[0]["label_meta_dict"]["filename_or_obj"][0])
 
-                    # Pass inputs to model and optimise
+                    # Pass inputs to model and optimise: Forward loop
                     fake_B = G_A(real_A)
-                    fake_A = G_B(real_B)
-
-                    # Reconstructions
+                    # Pair fake B with fake z to generate rec_A
                     rec_A = G_B(fake_B)
+
+                    # Backward loop: Sample z from normal distribution
+                    fake_A = G_B(real_B)
+                    # Reconstructed B
                     rec_B = G_A(fake_A)
 
                     # Identity
-                    idt_A = G_A(real_B)
-                    idt_B = G_B(real_A)
+                    # idt_A = G_A(real_B)
+                    # idt_B = G_B(real_A)
 
                     # Training
                     # Only begin to train discriminator after model has started to converge
@@ -416,18 +435,22 @@ if __name__ == '__main__':
                         adv_start = time.time()
                         D_A_total_loss = torch.zeros(1,)
                         D_B_total_loss = torch.zeros(1,)
-                        agg_real_disc_acc = 0
-                        agg_fake_disc_acc = 0
+                        agg_real_D_A_acc = 0
+                        agg_fake_D_A_acc = 0
+                        agg_real_D_B_acc = 0
+                        agg_fake_D_B_acc = 0
                         # Always have to do at least one run otherwise how is accuracy calculated?
                         for _ in range(1):
                             # Update discriminator by looping N times
                             # with torch.cuda.amp.autocast(enabled=True):
                             D_B_loss, real_D_B_acc, fake_D_B_acc, _, fake_D_B_out = discriminator_loss(gen_images=fake_B,
                                                                                                        real_images=real_B,
-                                                                                                       discriminator=D_B)
+                                                                                                       discriminator=D_B,
+                                                                                                       real_label_flip_chance=opt.label_flipping_chance)
                             D_A_loss, real_D_A_acc, fake_D_A_acc, _, fake_D_A_out = discriminator_loss(gen_images=fake_A,
                                                                                                        real_images=real_A,
-                                                                                                       discriminator=D_A)
+                                                                                                       discriminator=D_A,
+                                                                                                       real_label_flip_chance=opt.label_flipping_chance)
 
                             # if overall_disc_acc < disc_acc_thr_upper:
                             D_optimizer.zero_grad()
@@ -475,20 +498,18 @@ if __name__ == '__main__':
                         B_cycle = criterionCycle(rec_B, real_B)
 
                         # Idt losses
-                        idt_A_loss = criterionIdt(idt_A, real_B)
-                        idt_B_loss = criterionIdt(idt_B, real_A)
+                        # idt_A_loss = criterionIdt(idt_A, real_B)
+                        # idt_B_loss = criterionIdt(idt_B, real_A)
 
                         # Total loss
-                        total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + idt_A_loss + idt_B_loss
+                        # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + idt_A_loss + idt_B_loss
+                        total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
 
                         # Backward
                         total_G_loss.backward()
 
                         # G optimization
                         G_optimizer.step()
-
-                    # Clean-up
-                    del real_A, real_B, train_sample
 
                     # if total_steps % opt.print_freq == 0:
                     if total_steps % opt.save_latest_freq == 0:
@@ -524,7 +545,8 @@ if __name__ == '__main__':
                                             "Generator_A": G_A_loss,
                                             "Generator_B": G_B_loss,
                                             "Discriminator_A": D_A_loss,
-                                            "Discriminator_B": D_B_loss}, running_iter)
+                                            "Discriminator_B": D_B_loss,
+                                            }, running_iter)
 
                         writer.add_scalars('Loss/Granular_G',
                                            {"total_G_loss": total_G_loss,
@@ -532,8 +554,9 @@ if __name__ == '__main__':
                                             "Generator_B": G_B_loss,
                                             "cycle_A": A_cycle,
                                             "cycle_B": B_cycle,
-                                            "idt_A": idt_A,
-                                            "idt_B": idt_B}, running_iter)
+                                            # "idt_A": idt_A,
+                                            # "idt_B": idt_B
+                                            }, running_iter)
 
                         # Images
                         # Reals
@@ -578,6 +601,9 @@ if __name__ == '__main__':
                     iter_data_time = time.time()
                     running_iter += 1
 
+                    # Clean-up
+                    del real_A, real_B, train_sample, rec_A, rec_B
+
                 if epoch % val_gap == 0:
                     G_A.eval()
                     G_B.eval()
@@ -586,34 +612,38 @@ if __name__ == '__main__':
                     with torch.no_grad():
                         for val_sample in val_loader:
                             # Validation variables
-                            val_real_A = val_sample[0]['image']
-                            val_real_B = val_sample[0]['label']
+                            val_real_A = val_sample[0]['image'].cuda()
+                            val_real_B = val_sample[0]['label'].cuda()
                             image_name = os.path.basename(val_sample[0]["image_meta_dict"]["filename_or_obj"][0])
                             label_name = os.path.basename(val_sample[0]["label_meta_dict"]["filename_or_obj"][0])
                             val_affine = val_sample[0]['image_meta_dict']['affine'][0, ...]
                             label_affine = val_sample[0]['label_meta_dict']['affine'][0, ...]
 
                             # Forward
-                            # Pass inputs to model and optimise
+                            # Pass inputs to model and optimise: Forward loop
                             val_fake_B = G_A(val_real_A)
-                            val_fake_A = G_B(val_real_B)
-
-                            # Reconstructions
+                            # Pair fake B with fake z to generate rec_A
                             val_rec_A = G_B(val_fake_B)
+
+                            # Backward loop
+                            val_fake_A = G_B(val_real_B)
+                            # Reconstructed B
                             val_rec_B = G_A(val_fake_A)
 
                             # Identity
-                            val_idt_A = G_A(val_real_B)
-                            val_idt_B = G_B(val_real_A)
+                            # val_idt_A = G_A(val_real_B)
+                            # val_idt_B = G_B(val_real_A)
 
                             # "Losses"
                             # Discriminator
-                            val_D_B_loss, _, _, _, val_fake_D_B_out = discriminator_loss(gen_images=fake_B,
-                                                                                         real_images=real_B,
-                                                                                         discriminator=D_B)
-                            val_D_A_loss, _, _, _, val_fake_D_A_out = discriminator_loss(gen_images=fake_A,
-                                                                                         real_images=real_A,
-                                                                                         discriminator=D_A)
+                            val_D_B_loss, _, _, _, val_fake_D_B_out = discriminator_loss(gen_images=val_fake_B,
+                                                                                         real_images=val_real_B,
+                                                                                         discriminator=D_B,
+                                                                                         real_label_flip_chance=0.0)
+                            val_D_A_loss, _, _, _, val_fake_D_A_out = discriminator_loss(gen_images=val_fake_A,
+                                                                                         real_images=val_real_A,
+                                                                                         discriminator=D_A,
+                                                                                         real_label_flip_chance=0.0)
 
                             # Generator
                             val_G_A_loss = generator_loss(gen_images=val_fake_B, discriminator=D_B)
@@ -624,11 +654,12 @@ if __name__ == '__main__':
                             val_B_cycle = criterionCycle(val_rec_B, val_real_B)
 
                             # Idt losses
-                            val_idt_A_loss = criterionIdt(val_idt_A, val_real_B)
-                            val_idt_B_loss = criterionIdt(val_idt_B, val_real_A)
+                            # val_idt_A_loss = criterionIdt(val_idt_A, val_real_B)
+                            # val_idt_B_loss = criterionIdt(val_idt_B, val_real_A)
 
                             # Total loss
-                            val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_idt_A_loss + val_idt_B_loss
+                            # val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_idt_A_loss + val_idt_B_loss
+                            val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle
 
                         # Graphs
                         writer.add_scalars('Loss/Val_Adversarial',
@@ -636,7 +667,8 @@ if __name__ == '__main__':
                                             "Generator_A": val_G_A_loss,
                                             "Generator_B": val_G_B_loss,
                                             "Discriminator_A": val_D_A_loss,
-                                            "Discriminator_B": val_D_B_loss}, running_iter)
+                                            "Discriminator_B": val_D_B_loss,
+                                           }, running_iter)
 
                         writer.add_scalars('Loss/Val_Granular_G',
                                            {"total_G_loss": val_total_G_loss,
@@ -644,8 +676,9 @@ if __name__ == '__main__':
                                             "Generator_B": val_G_B_loss,
                                             "cycle_A": val_A_cycle,
                                             "cycle_B": val_B_cycle,
-                                            "idt_A": val_idt_A,
-                                            "idt_B": val_idt_B}, running_iter)
+                                            # "idt_A": val_idt_A,
+                                            # "idt_B": val_idt_B
+                                            }, running_iter)
 
                         # Images
                         # Reals
@@ -681,6 +714,9 @@ if __name__ == '__main__':
                                                          tag=f'Validation/Rec_A_fold_{fold}',
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
+
+                        # Clean-up
+                        del val_real_A, val_real_B, val_sample, val_rec_A, val_rec_B
 
                 print(f'End of epoch {epoch} / {opt.niter} \t Time Taken: {time.time() - epoch_start_time:.3f} sec')
                 G_scheduler.step(epoch)
