@@ -58,7 +58,7 @@ if __name__ == '__main__':
 
     # Losses
     # Define discriminator loss and other related variables
-    real_label = 1
+    real_label = opt.real_label
     fake_label = 0
 
     # Pix2PixHD loss setup
@@ -474,14 +474,16 @@ if __name__ == '__main__':
                             # with torch.cuda.amp.autocast(enabled=True):
                             D_B_loss, real_D_B_acc, fake_D_B_acc, _, fake_D_B_out = discriminator_loss(gen_images=fake_B,
                                                                                                        real_images=real_B,
-                                                                                                       discriminator=D_B)
+                                                                                                       discriminator=D_B,
+                                                                                                       real_label_flip_chance=opt.real_label_flipping_chance)
                             D_A_loss, real_D_A_acc, fake_D_A_acc, _, fake_D_A_out = discriminator_loss(gen_images=fake_A,
                                                                                                        real_images=real_A,
-                                                                                                       discriminator=D_A)
+                                                                                                       discriminator=D_A,
+                                                                                                       real_label_flip_chance=opt.real_label_flipping_chance)
                             D_z_loss, real_D_z_acc, fake_D_z_acc, _, fake_D_z_out = discriminator_loss(gen_images=fake_z,
                                                                                                        real_images=real_z,
                                                                                                        discriminator=D_z,
-                                                                                                       real_label_flip_chance=0.0)
+                                                                                                       real_label_flip_chance=opt.real_label_flipping_chance)
 
                             # if overall_disc_acc < disc_acc_thr_upper:
                             D_optimizer.zero_grad()
@@ -710,10 +712,12 @@ if __name__ == '__main__':
                             # Discriminator
                             val_D_B_loss, _, _, _, val_fake_D_B_out = discriminator_loss(gen_images=val_fake_B,
                                                                                          real_images=val_real_B,
-                                                                                         discriminator=D_B)
+                                                                                         discriminator=D_B,
+                                                                                         real_label_flip_chance=0.0)
                             val_D_A_loss, _, _, _, val_fake_D_A_out = discriminator_loss(gen_images=val_fake_A,
                                                                                          real_images=val_real_A,
-                                                                                         discriminator=D_A)
+                                                                                         discriminator=D_A,
+                                                                                         real_label_flip_chance=0.0)
                             val_D_z_loss, _, _, _, val_fake_D_z_out = discriminator_loss(gen_images=val_fake_z,
                                                                                          real_images=val_real_z,
                                                                                          discriminator=D_z,
