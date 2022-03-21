@@ -533,6 +533,11 @@ if __name__ == '__main__':
                             'D_A_state_dict': D_A.state_dict(),
                             'D_B_state_dict': D_B.state_dict(),
                         }
+
+                        # Actually save
+                        torch.save(current_state_dict, os.path.join(MODELS_DIR,
+                                                                    save_filename))
+
                         G_A.cuda()
                         G_B.cuda()
                         D_A.cuda()
@@ -679,6 +684,37 @@ if __name__ == '__main__':
                                             # "idt_A": val_idt_A,
                                             # "idt_B": val_idt_B
                                             }, running_iter)
+
+                        # Saving
+                        print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
+                        # Saving
+                        # Define ONE file for saving ALL state dicts
+                        G_A.cpu()
+                        G_B.cpu()
+                        D_A.cpu()
+                        D_B.cpu()
+                        save_filename = f'epoch_{epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
+                        current_state_dict = {
+                            'G_optimizer_state_dict': G_optimizer.state_dict(),
+                            'D_optimizer_state_dict': D_optimizer.state_dict(),
+                            'epoch': epoch,
+                            'running_iter': running_iter,
+                            'batch_size': opt.batch_size,
+                            'patch_size': opt.patch_size,
+                            'G_A_state_dict': G_A.state_dict(),
+                            'G_B_state_dict': G_B.state_dict(),
+                            'D_A_state_dict': D_A.state_dict(),
+                            'D_B_state_dict': D_B.state_dict(),
+                        }
+
+                        # Actually save
+                        torch.save(current_state_dict, os.path.join(MODELS_DIR,
+                                                                    save_filename))
+
+                        G_A.cuda()
+                        G_B.cuda()
+                        D_A.cuda()
+                        D_B.cuda()
 
                         # Images
                         # Reals
