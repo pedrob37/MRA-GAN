@@ -235,7 +235,6 @@ if __name__ == '__main__':
 
     # Other variables
     val_gap = 5
-    running_iter = 0
     LOAD = True
 
     # Folds
@@ -295,6 +294,110 @@ if __name__ == '__main__':
         # D_B_scheduler = torch.optim.lr_scheduler.ExponentialLR(D_B_optimizer, 0.99)
         # G_B_scaler = torch.cuda.amp.GradScaler()
         # D_B_scaler = torch.cuda.amp.GradScaler()
+
+        # Loading
+        # Model loading
+        file_list = os.listdir(path=MODELS_DIR)
+        num_files = len(file_list)
+        print(f'The number of files is {num_files}')
+
+        # if num_files > 0 and LOAD:
+        #     import glob
+        #     # total_steps = model.load_networks('latest', models_dir=MODELS_DIR, phase=opt.phase)
+        #     model_files = glob.glob(os.path.join(MODELS_DIR, '*.pth'))
+        #     for some_model_file in model_files:
+        #         print(some_model_file)
+        #     sorted_model_files = sorted(model_files, key=os.path.getmtime)
+        #     # Allows inference to be run on nth latest file!
+        #     latest_model_file = sorted_model_files[-1]
+        #     checkpoint = torch.load(latest_model_file, map_location=torch.device('cuda:0'))
+        #     print(f'Loading {latest_model_file}!')
+        #     loaded_epoch = checkpoint['epoch']
+        #     running_iter = checkpoint['running_iter']
+        #     total_steps = checkpoint['total_steps']
+        # else:
+        #     total_steps = 0
+        #     running_iter = 0
+        #     loaded_epoch = 0
+
+        if LOAD and num_files > 0 and opt.phase != 'inference':
+            # Find latest model
+            import glob
+            # total_steps = model.load_networks('latest', models_dir=MODELS_DIR, phase=opt.phase)
+            model_files = glob.glob(os.path.join(MODELS_DIR, '*.pth'))
+            for some_model_file in model_files:
+                print(some_model_file)
+            sorted_model_files = sorted(model_files, key=os.path.getmtime)
+            # Allows inference to be run on nth latest file!
+            latest_model_file = sorted_model_files[-1]
+            checkpoint = torch.load(latest_model_file, map_location=torch.device('cuda:0'))
+            print(f'Loading {latest_model_file}!')
+            loaded_epoch = checkpoint['epoch']
+            running_iter = checkpoint['running_iter']
+            total_steps = checkpoint['total_steps']
+
+            # Get model file specific to fold
+            # loaded_model_file = f'epoch_{loaded_epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
+            # checkpoint = torch.load(os.path.join(MODELS_DIR, loaded_model_file), map_location=torch.device('cuda:0'))
+
+            # Main model variables
+            G_A.load_state_dict(checkpoint['G_A_state_dict'])
+            G_B.load_state_dict(checkpoint['G_B_state_dict'])
+            G_optimizer.load_state_dict(checkpoint['G_optimizer_state_dict'])
+            G_scheduler.load_state_dict(checkpoint["G_scheduler_state_dict"])
+            # gen_scaler.load_state_dict(checkpoint['scaler'])
+            for state in G_optimizer.state.values():
+                for k, v in state.items():
+                    if torch.is_tensor(v):
+                        state[k] = v.cuda()
+
+            # Load discriminator-specific variables
+            D_A.load_state_dict(checkpoint['D_A_state_dict'])
+            D_B.load_state_dict(checkpoint['D_B_state_dict'])
+            D_optimizer.load_state_dict(checkpoint['D_optimizer_state_dict'])
+            D_scheduler.load_state_dict(checkpoint["D_scheduler_state_dict"])
+            # gen_scaler.load_state_dict(checkpoint['scaler'])
+            for state in D_optimizer.state.values():
+                for k, v in state.items():
+                    if torch.is_tensor(v):
+                        state[k] = v.cuda()
+
+            # Ensure that no more loading is done for future folds
+            LOAD = False
+        elif LOAD and num_files > 0 and opt.phase == 'inference':
+            # Find latest model
+            import glob
+            # total_steps = model.load_networks('latest', models_dir=MODELS_DIR, phase=opt.phase)
+            model_files = glob.glob(os.path.join(MODELS_DIR, '*.pth'))
+            for some_model_file in model_files:
+                print(some_model_file)
+            sorted_model_files = sorted(model_files, key=os.path.getmtime)
+            # Allows inference to be run on nth latest file!
+            latest_model_file = sorted_model_files[-1]
+            checkpoint = torch.load(latest_model_file, map_location=torch.device('cuda:0'))
+            print(f'Loading {latest_model_file}!')
+            loaded_epoch = checkpoint['epoch']
+            running_iter = checkpoint['running_iter']
+            total_steps = checkpoint['total_steps']
+
+            # best_model_file = f'epoch_{loaded_epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
+            print(f'Loading checkpoint for model: {os.path.basename(latest_model_file)}')
+            # # checkpoint = torch.load(os.path.join(SAVE_PATH, best_model_file), map_location=model.device)
+            # checkpoint = torch.load(os.path.join(MODELS_DIR, best_model_file), map_location=torch.device('cuda:0'))
+            # Main model variables
+            G_A.load_state_dict(checkpoint['G_A_state_dict'])
+            G_B.load_state_dict(checkpoint['G_B_state_dict'])
+            G_optimizer.load_state_dict(checkpoint['G_optimizer_state_dict'])
+            G_scheduler.load_state_dict(checkpoint["G_scheduler_state_dict"])
+            # gen_scaler.load_state_dict(checkpoint['scaler'])
+            for state in G_optimizer.state.values():
+                for k, v in state.items():
+                    if torch.is_tensor(v):
+                        state[k] = v.cuda()
+        elif num_files == 0:
+            total_steps = 0
+            running_iter = 0
+            loaded_epoch = 0
 
         # Push to device
         G_A.cuda()
@@ -367,25 +470,15 @@ if __name__ == '__main__':
         # Model creation
         # model = create_model(opt)
         # model.setup(opt)
-
-        # Model loading
-        file_list = os.listdir(path=MODELS_DIR)
-        num_files = len(file_list)
-        print(f'The number of files is {num_files}')
-
-        if num_files > 0 and LOAD:
-            total_steps = model.load_networks('latest', models_dir=MODELS_DIR, phase=opt.phase)
-        else:
-            total_steps = 0
         visualizer = Visualizer(opt)
 
         # Z distribution
-        z_sampler = torch.distributions.Normal(torch.tensor(0.0).to(device=torch.device("cuda:0")),
-                                               torch.tensor(1.0).to(device=torch.device("cuda:0")))
+        # z_sampler = torch.distributions.Normal(torch.tensor(0.0).to(device=torch.device("cuda:0")),
+        #                                        torch.tensor(1.0).to(device=torch.device("cuda:0")))
 
         if opt.phase == "train":
             # Epochs
-            for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
+            for epoch in range(loaded_epoch, opt.niter + opt.niter_decay + 1):
                 # Model to train mode after potential eval call when running validation
                 G_A.train()
                 G_B.train()
@@ -520,12 +613,15 @@ if __name__ == '__main__':
                         G_B.cpu()
                         D_A.cpu()
                         D_B.cpu()
-                        save_filename = f'epoch_{epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
+                        save_filename = f'epoch_{epoch+1}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
                         current_state_dict = {
                             'G_optimizer_state_dict': G_optimizer.state_dict(),
                             'D_optimizer_state_dict': D_optimizer.state_dict(),
-                            'epoch': epoch,
+                            'G_scheduler_state_dict': G_scheduler.state_dict(),
+                            'D_scheduler_state_dict': D_scheduler.state_dict(),
+                            'epoch': epoch+1,
                             'running_iter': running_iter,
+                            'total_steps': total_steps,
                             'batch_size': opt.batch_size,
                             'patch_size': opt.patch_size,
                             'G_A_state_dict': G_A.state_dict(),
@@ -693,12 +789,15 @@ if __name__ == '__main__':
                         G_B.cpu()
                         D_A.cpu()
                         D_B.cpu()
-                        save_filename = f'epoch_{epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
+                        save_filename = f'epoch_{epoch+1}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
                         current_state_dict = {
                             'G_optimizer_state_dict': G_optimizer.state_dict(),
                             'D_optimizer_state_dict': D_optimizer.state_dict(),
-                            'epoch': epoch,
+                            'G_scheduler_state_dict': G_scheduler.state_dict(),
+                            'D_scheduler_state_dict': D_scheduler.state_dict(),
+                            'epoch': epoch+1,
                             'running_iter': running_iter,
+                            'total_steps': total_steps,
                             'batch_size': opt.batch_size,
                             'patch_size': opt.patch_size,
                             'G_A_state_dict': G_A.state_dict(),
