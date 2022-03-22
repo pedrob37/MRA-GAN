@@ -314,9 +314,10 @@ from torch import nn
 
 
 class VAE(nn.Module):
-    def __init__(self, z_dim=512, dropout_rate=0.0):
+    def __init__(self, z_dim=512, linear_in_feats=2800, dropout_rate=0.0):
         super().__init__()
         self.z_dim = z_dim
+        self.linear_in_feats = linear_in_feats
 
         self.encoder = nn.Sequential(
             nn.Conv3d(1, 32, 5, stride=2, padding=2),
@@ -334,12 +335,12 @@ class VAE(nn.Module):
         )
 
         self.intermediate_conv = nn.Conv3d(256, 16, 1)
-        self.mu_layer = nn.Linear(2800, z_dim)
-        self.sigma_layer = nn.Linear(2800, z_dim)
+        self.mu_layer = nn.Linear(self.linear_in_feats, z_dim)
+        self.sigma_layer = nn.Linear(self.linear_in_feats, z_dim)
         self.dropout_mu_layer_enc = nn.Dropout3d(p=dropout_rate)
         self.dropout_sigma_layer_enc = nn.Dropout3d(p=dropout_rate)
 
-        self.dec_dense = nn.Linear(z_dim, 2800)
+        self.dec_dense = nn.Linear(z_dim, self.linear_in_feats)
         self.dropout_layer_dec = nn.Dropout3d(p=dropout_rate)
         self.intermediate_conv_reverse = nn.Conv3d(16, 128, 1)
 
@@ -365,7 +366,7 @@ class VAE(nn.Module):
         temp_out = self.encoder(x)
 
         temp_out = self.intermediate_conv(temp_out)
-        flatten = temp_out.view(-1, 2800)
+        flatten = temp_out.view(-1, self.linear_in_feats)
 
         z_mu = self.mu_layer(flatten)
         # z_log_sigma = self.dropout_sigma_layer_enc(self.sigma_layer(flatten))

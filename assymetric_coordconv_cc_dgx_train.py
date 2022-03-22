@@ -263,7 +263,9 @@ if __name__ == '__main__':
 
         # Encoder
         # Aux_E = resnet10(pretrained=False, n_input_channels=1)
-        Aux_E = VAE(z_dim=512, dropout_rate=0.0)
+        Aux_E = VAE(z_dim=512,
+                    linear_in_feats=2048,
+                    dropout_rate=0.0)
 
         # Discriminators
         D_A = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
