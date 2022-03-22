@@ -302,3 +302,104 @@ class CoordConvd(MapTransform):
         # rand_num = np.random.randint(10000)
         # save_img(self.normalise_images(self.fake_A[0, 0, ...].cpu().detach().numpy()), None, f"/nfs/home/pedro/Outputs-MRA-GAN/fake_A_{rand_num}.nii.gz")
         # save_img(self.normalise_images(self.fake_B[0, 0, ...].cpu().detach().numpy()), None, f"/nfs/home/pedro/Outputs-MRA-GAN/fake_B_{rand_num}.nii.gz")
+
+
+""" Variational Autoencoder
+
+Based on
+https://github.com/StefanDenn3r/Unsupervised_Anomaly_Detection_Brain_MRI/blob/master/models/variational_autoencoder.py
+"""
+import torch
+from torch import nn
+
+
+class VAE(nn.Module):
+    def __init__(self, z_dim=512, dropout_rate=0.0):
+        super().__init__()
+        self.z_dim = z_dim
+
+        self.encoder = nn.Sequential(
+            nn.Conv3d(1, 32, 5, stride=2, padding=2),
+            nn.BatchNorm3d(32),
+            nn.LeakyReLU(0.2),
+            nn.Conv3d(32, 64, 5, stride=2, padding=2),
+            nn.BatchNorm3d(64),
+            nn.LeakyReLU(0.2),
+            nn.Conv3d(64, 128, 5, stride=2, padding=2),
+            nn.BatchNorm3d(128),
+            nn.LeakyReLU(0.2),
+            nn.Conv3d(128, 256, 5, stride=2, padding=2),
+            nn.BatchNorm3d(256),
+            nn.LeakyReLU(0.2),
+        )
+
+        self.intermediate_conv = nn.Conv3d(256, 16, 1)
+        self.mu_layer = nn.Linear(2800, z_dim)
+        self.sigma_layer = nn.Linear(2800, z_dim)
+        self.dropout_mu_layer_enc = nn.Dropout3d(p=dropout_rate)
+        self.dropout_sigma_layer_enc = nn.Dropout3d(p=dropout_rate)
+
+        self.dec_dense = nn.Linear(z_dim, 2800)
+        self.dropout_layer_dec = nn.Dropout3d(p=dropout_rate)
+        self.intermediate_conv_reverse = nn.Conv3d(16, 128, 1)
+
+        self.decoder = nn.Sequential(
+            nn.BatchNorm3d(128),
+            nn.ReLU(),
+            nn.ConvTranspose3d(128, 128, 4, stride=2, padding=1),
+            nn.BatchNorm3d(128),
+            nn.LeakyReLU(0.2),
+            nn.ConvTranspose3d(128, 64, 4, stride=2, padding=1),
+            nn.BatchNorm3d(64),
+            nn.LeakyReLU(0.2),
+            nn.ConvTranspose3d(64, 32, 4, stride=2, padding=1),
+            nn.BatchNorm3d(32),
+            nn.LeakyReLU(0.2),
+            nn.ConvTranspose3d(32, 32, 4, stride=2, padding=1),
+            nn.BatchNorm3d(32),
+            nn.LeakyReLU(0.2),
+            nn.Conv3d(32, 1, 1),
+        )
+
+    def encode(self, x):
+        temp_out = self.encoder(x)
+
+        temp_out = self.intermediate_conv(temp_out)
+        flatten = temp_out.view(-1, 2800)
+
+        z_mu = self.mu_layer(flatten)
+        # z_log_sigma = self.dropout_sigma_layer_enc(self.sigma_layer(flatten))
+        # z_sigma = torch.exp(z_log_sigma)
+
+        # Reshape
+        output_spatial_side = int(x.shape[-1] / 16)
+        z_mu_reshaped = z_mu.view(1, -1,
+                                  output_spatial_side,
+                                  output_spatial_side,
+                                  output_spatial_side)  # 8 for patch size 128
+
+        return z_mu_reshaped  # z_sigma  # Need to edit assym. script!
+
+    def sampling(self, z_mu, z_sigma):
+        eps = torch.randn_like(z_sigma)
+        z_vae = z_mu + eps * z_sigma
+        return z_vae
+
+    def decode(self, z_vae):
+        reshaped = self.dropout_layer_dec(self.dec_dense(z_vae)).view(-1, 16, 5, 7, 5)
+        temp_out = self.intermediate_conv_reverse(reshaped)
+        temp_out = self.decoder(temp_out)
+
+        return temp_out
+
+    def forward(self, x):
+        # z_mu, z_sigma = self.encode(x)
+        # z = self.sampling(z_mu, z_sigma)
+        # reconstruction = self.decode(z)
+        z = self.encode(x)
+        return z
+
+    def reconstruct(self, x):
+        z_mu, _ = self.encode(x)
+        reconstruction = self.decode(z_mu)
+        return reconstruction

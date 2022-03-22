@@ -29,8 +29,8 @@ from monai.transforms import (Compose,
                               )
 
 if __name__ == '__main__':
-    torch.cuda.empty_cache()
     os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+    torch.cuda.empty_cache()
 
     # -----  Loading the init options -----
     opt = TrainOptions().parse()
@@ -93,19 +93,19 @@ if __name__ == '__main__':
             0, ...].nelement()
         fake_disc_sum_ds1 = fake_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[0][0][
             0, ...].nelement()
-        real_disc_sum_ds2 = real_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[1][0][
-            0, ...].nelement()
-        fake_disc_sum_ds2 = fake_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[1][0][
-            0, ...].nelement()
+        # real_disc_sum_ds2 = real_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[1][0][
+        #     0, ...].nelement()
+        # fake_disc_sum_ds2 = fake_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[1][0][
+        #     0, ...].nelement()
 
         real_disc_accuracy_ds1 = ((real_disc_sum_ds1 > 0.5) == real_label).float().sum() / real_images.shape[0]
         fake_disc_accuracy_ds1 = ((fake_disc_sum_ds1 > 0.5) == fake_label).float().sum() / real_images.shape[0]
-        real_disc_accuracy_ds2 = ((real_disc_sum_ds2 > 0.5) == real_label).float().sum() / real_images.shape[0]
-        fake_disc_accuracy_ds2 = ((fake_disc_sum_ds2 > 0.5) == fake_label).float().sum() / real_images.shape[0]
+        # real_disc_accuracy_ds2 = ((real_disc_sum_ds2 > 0.5) == real_label).float().sum() / real_images.shape[0]
+        # fake_disc_accuracy_ds2 = ((fake_disc_sum_ds2 > 0.5) == fake_label).float().sum() / real_images.shape[0]
 
         return (genloss + realloss) / 2, \
-               (real_disc_accuracy_ds1 + real_disc_accuracy_ds2) / 2, \
-               (fake_disc_accuracy_ds1 + fake_disc_accuracy_ds2) / 2, \
+               (real_disc_accuracy_ds1) / 1, \
+               (fake_disc_accuracy_ds1) / 1, \
                real_disc_prediction, fake_disc_prediction
 
 
@@ -418,6 +418,10 @@ if __name__ == '__main__':
                         D_B_total_loss = torch.zeros(1,)
                         agg_real_disc_acc = 0
                         agg_fake_disc_acc = 0
+                        agg_real_D_B_acc = 0
+                        agg_real_D_A_acc = 0
+                        agg_fake_D_B_acc = 0
+                        agg_fake_D_A_acc = 0
                         # Always have to do at least one run otherwise how is accuracy calculated?
                         for _ in range(1):
                             # Update discriminator by looping N times

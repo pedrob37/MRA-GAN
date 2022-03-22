@@ -23,9 +23,9 @@ class nnUNet(nn.Module):
 
     def tiling_and_concat(self, z_input, conv_input, concat_axis=1):
         # Expand dimensions N times until it matches that of the conv it will be concatenated to
-        upsampler = torch.nn.Upsample(size=conv_input.shape[2:], mode='nearest')
-        upsampled_z = upsampler(z_input)
-        conv_concat = torch.cat([conv_input, upsampled_z], dim=concat_axis)
+        # upsampler = torch.nn.Upsample(size=conv_input.shape[2:], mode='nearest')
+        # upsampled_z = upsampler(z_input)
+        conv_concat = torch.cat([conv_input, z_input], dim=concat_axis)
         return conv_concat
 
     def expansive_block(self, in_channels, mid_channel, final_channel, kernel_size=3, block_dropout=0.0):
