@@ -329,38 +329,38 @@ class VAE(nn.Module):
             nn.Conv3d(64, 128, 5, stride=2, padding=2),
             nn.BatchNorm3d(128),
             nn.LeakyReLU(0.2),
-            nn.Conv3d(128, 256, 5, stride=2, padding=2),
-            nn.BatchNorm3d(256),
+            nn.Conv3d(128, 128, 5, stride=2, padding=2),
+            nn.BatchNorm3d(128),
             nn.LeakyReLU(0.2),
         )
 
-        self.intermediate_conv = nn.Conv3d(256, 16, 1)
+        self.intermediate_conv = nn.Conv3d(128, 16, 1)
         self.mu_layer = nn.Linear(self.linear_in_feats, z_dim)
-        self.sigma_layer = nn.Linear(self.linear_in_feats, z_dim)
-        self.dropout_mu_layer_enc = nn.Dropout3d(p=dropout_rate)
-        self.dropout_sigma_layer_enc = nn.Dropout3d(p=dropout_rate)
-
-        self.dec_dense = nn.Linear(z_dim, self.linear_in_feats)
-        self.dropout_layer_dec = nn.Dropout3d(p=dropout_rate)
-        self.intermediate_conv_reverse = nn.Conv3d(16, 128, 1)
-
-        self.decoder = nn.Sequential(
-            nn.BatchNorm3d(128),
-            nn.ReLU(),
-            nn.ConvTranspose3d(128, 128, 4, stride=2, padding=1),
-            nn.BatchNorm3d(128),
-            nn.LeakyReLU(0.2),
-            nn.ConvTranspose3d(128, 64, 4, stride=2, padding=1),
-            nn.BatchNorm3d(64),
-            nn.LeakyReLU(0.2),
-            nn.ConvTranspose3d(64, 32, 4, stride=2, padding=1),
-            nn.BatchNorm3d(32),
-            nn.LeakyReLU(0.2),
-            nn.ConvTranspose3d(32, 32, 4, stride=2, padding=1),
-            nn.BatchNorm3d(32),
-            nn.LeakyReLU(0.2),
-            nn.Conv3d(32, 1, 1),
-        )
+        # self.sigma_layer = nn.Linear(self.linear_in_feats, z_dim)
+        # self.dropout_mu_layer_enc = nn.Dropout3d(p=dropout_rate)
+        # self.dropout_sigma_layer_enc = nn.Dropout3d(p=dropout_rate)
+        #
+        # self.dec_dense = nn.Linear(z_dim, self.linear_in_feats)
+        # self.dropout_layer_dec = nn.Dropout3d(p=dropout_rate)
+        # self.intermediate_conv_reverse = nn.Conv3d(16, 128, 1)
+        #
+        # self.decoder = nn.Sequential(
+        #     nn.BatchNorm3d(128),
+        #     nn.ReLU(),
+        #     nn.ConvTranspose3d(128, 128, 4, stride=2, padding=1),
+        #     nn.BatchNorm3d(128),
+        #     nn.LeakyReLU(0.2),
+        #     nn.ConvTranspose3d(128, 64, 4, stride=2, padding=1),
+        #     nn.BatchNorm3d(64),
+        #     nn.LeakyReLU(0.2),
+        #     nn.ConvTranspose3d(64, 32, 4, stride=2, padding=1),
+        #     nn.BatchNorm3d(32),
+        #     nn.LeakyReLU(0.2),
+        #     nn.ConvTranspose3d(32, 32, 4, stride=2, padding=1),
+        #     nn.BatchNorm3d(32),
+        #     nn.LeakyReLU(0.2),
+        #     nn.Conv3d(32, 1, 1),
+        # )
 
     def encode(self, x):
         temp_out = self.encoder(x)
@@ -381,17 +381,17 @@ class VAE(nn.Module):
 
         return z_mu_reshaped  # z_sigma  # Need to edit assym. script!
 
-    def sampling(self, z_mu, z_sigma):
-        eps = torch.randn_like(z_sigma)
-        z_vae = z_mu + eps * z_sigma
-        return z_vae
-
-    def decode(self, z_vae):
-        reshaped = self.dropout_layer_dec(self.dec_dense(z_vae)).view(-1, 16, 5, 7, 5)
-        temp_out = self.intermediate_conv_reverse(reshaped)
-        temp_out = self.decoder(temp_out)
-
-        return temp_out
+    # def sampling(self, z_mu, z_sigma):
+    #     eps = torch.randn_like(z_sigma)
+    #     z_vae = z_mu + eps * z_sigma
+    #     return z_vae
+    #
+    # def decode(self, z_vae):
+    #     reshaped = self.dropout_layer_dec(self.dec_dense(z_vae)).view(-1, 16, 5, 7, 5)
+    #     temp_out = self.intermediate_conv_reverse(reshaped)
+    #     temp_out = self.decoder(temp_out)
+    #
+    #     return temp_out
 
     def forward(self, x):
         # z_mu, z_sigma = self.encode(x)
@@ -400,7 +400,7 @@ class VAE(nn.Module):
         z = self.encode(x)
         return z
 
-    def reconstruct(self, x):
-        z_mu, _ = self.encode(x)
-        reconstruction = self.decode(z_mu)
-        return reconstruction
+    # def reconstruct(self, x):
+    #     z_mu, _ = self.encode(x)
+    #     reconstruction = self.decode(z_mu)
+    #     return reconstruction

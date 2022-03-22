@@ -259,7 +259,7 @@ if __name__ == '__main__':
         elif opt.final_act == "sigmoid":
             G_A_final_act = torch.nn.Sigmoid()
         G_A = nnUNet(4, 1, dropout_level=0, final_act=G_A_final_act)
-        G_B = nnUNet(4, 1, dropout_level=0, z_concat_flag=True, z_output=1)
+        G_B = nnUNet(4, 1, dropout_level=0, z_concat_flag=True, z_output=4)
 
         # Encoder
         # Aux_E = resnet10(pretrained=False, n_input_channels=1)
@@ -276,7 +276,7 @@ if __name__ == '__main__':
                                              opt.n_layers_D,
                                              nn.InstanceNorm3d, False, 1, False)
 
-        D_z = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
+        D_z = NoisyMultiscaleDiscriminator3D(4, opt.ndf,
                                              3,
                                              nn.InstanceNorm3d, False, 1, False)
 
