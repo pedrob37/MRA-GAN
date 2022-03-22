@@ -792,7 +792,7 @@ if __name__ == '__main__':
                     running_iter += 1
 
                     # Clean-up
-                    del real_A, real_B, train_sample, real_z, rec_A, rec_B, rec_z
+                    del real_A, real_B, train_sample, real_z, rec_A, rec_B, rec_z, train_coords
 
                 if epoch % val_gap == 0:
                     G_A.eval()
@@ -806,6 +806,8 @@ if __name__ == '__main__':
                             # Validation variables
                             val_real_A = val_sample[0]['image'].cuda()
                             val_real_B = val_sample[0]['label'].cuda()
+                            val_coords = val_sample[0]['coords'].cuda()
+
                             image_name = os.path.basename(val_sample[0]["image_meta_dict"]["filename_or_obj"][0])
                             label_name = os.path.basename(val_sample[0]["label_meta_dict"]["filename_or_obj"][0])
                             val_affine = val_sample[0]['image_meta_dict']['affine'][0, ...]
@@ -813,17 +815,17 @@ if __name__ == '__main__':
 
                             # Forward
                             # Pass inputs to model and optimise: Forward loop
-                            val_fake_B = G_A(val_real_A)
+                            val_fake_B = G_A(torch.cat((val_real_A, val_coords), dim=1))
                             # Need fake z sample
                             val_fake_z = Aux_E(val_real_A)
                             # Pair fake B with fake z to generate rec_A
-                            val_rec_A = G_B(val_fake_B, val_fake_z)
+                            val_rec_A = G_B(torch.cat((val_fake_B, val_coords), dim=1), val_fake_z)
 
                             # Backward loop: Sample z from normal distribution
                             val_real_z = z_sampler.sample(val_fake_z.shape)
-                            val_fake_A = G_B(val_real_B, val_real_z)
+                            val_fake_A = G_B(torch.cat((val_real_B, val_coords), dim=1), val_real_z)
                             # Reconstructed B
-                            val_rec_B = G_A(val_fake_A)
+                            val_rec_B = G_A(torch.cat((val_fake_A, val_coords), dim=1))
                             # Reconstructed z
                             val_rec_z = Aux_E(val_fake_A)
 
@@ -968,7 +970,7 @@ if __name__ == '__main__':
                                                          scale_factor=255, global_step=running_iter)
 
                         # Clean-up
-                        del val_real_A, val_real_B, val_sample, val_real_z, val_rec_A, val_rec_B, val_rec_z
+                        del val_real_A, val_real_B, val_sample, val_real_z, val_rec_A, val_rec_B, val_rec_z, val_coords
 
                 print(f'End of epoch {epoch} / {opt.niter} \t Time Taken: {time.time() - epoch_start_time:.3f} sec')
                 G_scheduler.step(epoch)
