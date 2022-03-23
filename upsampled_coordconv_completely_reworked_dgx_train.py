@@ -5,15 +5,15 @@ from options.train_options import TrainOptions
 import time
 from models import create_model
 from utils.visualizer import Visualizer
-from utils.utils import create_path, save_img, CoordConvd, VAE
+from utils.utils import create_path, save_img, CoordConvd
 import monai
 import pandas as pd
 import numpy as np
-# from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 import torch.nn as nn
-from models.model_transconvs_norm import nnUNet
+from models.model_upsamps_norm import nnUNet
 from models.pix2pix_disc_networks import NoisyMultiscaleDiscriminator3D, GANLoss
-# import monai.visualize.img2tensorboard as img2tensorboard
+import monai.visualize.img2tensorboard as img2tensorboard
 from models.resnets import resnet10
 from monai.transforms import (Compose,
                               LoadImaged,
@@ -38,8 +38,8 @@ if __name__ == '__main__':
 
     ### MONAI
     # Data directory
-    images_dir = os.path.join(opt.data_path, 'Images')  # MRA
-    labels_dir = os.path.join(opt.data_path, 'Labels')  # Binary
+    images_dir = os.path.join(opt.data_path, 'Images')  # MRA!
+    labels_dir = os.path.join(opt.data_path, 'Labels')  # Binary!
 
     # Read csv + add directory to filenames
     df = pd.read_csv(opt.csv_file)
@@ -213,10 +213,10 @@ if __name__ == '__main__':
     ## Relevant job directories
     if opt.phase == "train":
         # Main directories
-        CACHE_DIR = f"/data/Outputs-MRA-GAN/Cache/{opt.job_name}"
-        FIG_DIR = f"/data/Outputs-MRA-GAN/Figures/{opt.job_name}"
-        LOG_DIR = f'/data/Outputs-MRA-GAN/Logs/{opt.job_name}'
-        MODELS_DIR = f"/data/Outputs-MRA-GAN/Models/{opt.job_name}"
+        CACHE_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Cache/{opt.job_name}"
+        FIG_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Figures/{opt.job_name}"
+        LOG_DIR = f'/nfs/home/pedro/Outputs-MRA-GAN/Logs/{opt.job_name}'
+        MODELS_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Models/{opt.job_name}"
 
         # Create directories
         create_path(CACHE_DIR)
@@ -227,10 +227,10 @@ if __name__ == '__main__':
         opt.job_name = opt.job_name.split('-', 1)[1]
 
         # Directories should already exist
-        CACHE_DIR = f"/data/Outputs-MRA-GAN/Cache/{opt.job_name}"
-        FIG_DIR = f"/data/Outputs-MRA-GAN/Figures/{opt.job_name}"
-        LOG_DIR = f'/data/Outputs-MRA-GAN/Logs/{opt.job_name}'
-        MODELS_DIR = f"/data/Outputs-MRA-GAN/Models/{opt.job_name}"
+        CACHE_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Cache/{opt.job_name}"
+        FIG_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Figures/{opt.job_name}"
+        LOG_DIR = f'/nfs/home/pedro/Outputs-MRA-GAN/Logs/{opt.job_name}'
+        MODELS_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Models/{opt.job_name}"
     else:
         raise NameError("Job phase is test but job name does not start with inf!")
 
@@ -239,8 +239,7 @@ if __name__ == '__main__':
     opt.log_dir = LOG_DIR
 
     # Other variables
-    val_gap = 2
-    running_iter = 0
+    val_gap = 5
     LOAD = True
 
     # Folds
@@ -259,11 +258,7 @@ if __name__ == '__main__':
         elif opt.final_act == "sigmoid":
             G_A_final_act = torch.nn.Sigmoid()
         G_A = nnUNet(4, 1, dropout_level=0, final_act=G_A_final_act)
-        G_B = nnUNet(4, 1, dropout_level=0, z_concat_flag=True, z_output=8)
-
-        # Encoder
-        # Aux_E = resnet10(pretrained=False, n_input_channels=1)
-        Aux_E = VAE(z_dim=512, dropout_rate=0.0, linear_in_feats=1024)
+        G_B = nnUNet(4, 1, dropout_level=0)
 
         # Discriminators
         D_A = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
@@ -274,27 +269,17 @@ if __name__ == '__main__':
                                              opt.n_layers_D,
                                              nn.InstanceNorm3d, False, 1, False)
 
-        D_z = NoisyMultiscaleDiscriminator3D(8, opt.ndf,
-                                             3,
-                                             nn.InstanceNorm3d, False, 1, False)
-
         # Associated variables
         G_A = nn.DataParallel(G_A)
         G_B = nn.DataParallel(G_B)
         D_A = nn.DataParallel(D_A)
         D_B = nn.DataParallel(D_B)
 
-        # Z
-        Aux_E = nn.DataParallel(Aux_E)
-        D_z = nn.DataParallel(D_z)
-
-        from monai.networks.nets import resnet10
-
         # Optimizers + schedulers
         import itertools
-        G_optimizer = torch.optim.Adam(itertools.chain(G_A.parameters(), G_B.parameters(), Aux_E.parameters()),
+        G_optimizer = torch.optim.Adam(itertools.chain(G_A.parameters(), G_B.parameters()),
                                        lr=opt.gen_lr, betas=(0.5, 0.999))
-        D_optimizer = torch.optim.Adam(itertools.chain(D_A.parameters(), D_B.parameters(), D_z.parameters()),
+        D_optimizer = torch.optim.Adam(itertools.chain(D_A.parameters(), D_B.parameters()),
                                        lr=opt.disc_lr, betas=(0.5, 0.999))
         # G_A_optimizer = torch.optim.Adam(G_A.parameters(), lr=0.0001, betas=betas)
         # G_B_optimizer = torch.optim.Adam(G_B.parameters(), lr=0.0001, betas=betas)
@@ -321,6 +306,25 @@ if __name__ == '__main__':
         num_files = len(file_list)
         print(f'The number of files is {num_files}')
 
+        # if num_files > 0 and LOAD:
+        #     import glob
+        #     # total_steps = model.load_networks('latest', models_dir=MODELS_DIR, phase=opt.phase)
+        #     model_files = glob.glob(os.path.join(MODELS_DIR, '*.pth'))
+        #     for some_model_file in model_files:
+        #         print(some_model_file)
+        #     sorted_model_files = sorted(model_files, key=os.path.getmtime)
+        #     # Allows inference to be run on nth latest file!
+        #     latest_model_file = sorted_model_files[-1]
+        #     checkpoint = torch.load(latest_model_file, map_location=torch.device('cuda:0'))
+        #     print(f'Loading {latest_model_file}!')
+        #     loaded_epoch = checkpoint['epoch']
+        #     running_iter = checkpoint['running_iter']
+        #     total_steps = checkpoint['total_steps']
+        # else:
+        #     total_steps = 0
+        #     running_iter = 0
+        #     loaded_epoch = 0
+
         if LOAD and num_files > 0 and opt.phase != 'inference':
             # Find latest model
             import glob
@@ -340,10 +344,6 @@ if __name__ == '__main__':
             # Get model file specific to fold
             # loaded_model_file = f'epoch_{loaded_epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
             # checkpoint = torch.load(os.path.join(MODELS_DIR, loaded_model_file), map_location=torch.device('cuda:0'))
-
-            # Aux E and D_z
-            D_z.load_state_dict(checkpoint['D_z_state_dict'])
-            Aux_E.load_state_dict(checkpoint['Aux_E_state_dict'])
 
             # Main model variables
             G_A.load_state_dict(checkpoint['G_A_state_dict'])
@@ -389,10 +389,6 @@ if __name__ == '__main__':
             print(f'Loading checkpoint for model: {os.path.basename(latest_model_file)}')
             # # checkpoint = torch.load(os.path.join(SAVE_PATH, best_model_file), map_location=model.device)
             # checkpoint = torch.load(os.path.join(MODELS_DIR, best_model_file), map_location=torch.device('cuda:0'))
-
-            # Aux E and D_z
-            Aux_E.load_state_dict(checkpoint['Aux_E_state_dict'])
-
             # Main model variables
             G_A.load_state_dict(checkpoint['G_A_state_dict'])
             G_B.load_state_dict(checkpoint['G_B_state_dict'])
@@ -414,10 +410,6 @@ if __name__ == '__main__':
         D_A.cuda()
         D_B.cuda()
 
-        # z
-        Aux_E.cuda()
-        D_z.cuda()
-
         # Train / Val split
         val_fold = fold
         excluded_folds = [val_fold, inf_fold]
@@ -427,7 +419,7 @@ if __name__ == '__main__':
         val_df.reset_index(drop=True, inplace=True)
 
         # Writer
-        # writer = SummaryWriter(log_dir=os.path.join(LOG_DIR, f'fold_{fold}'))
+        writer = SummaryWriter(log_dir=os.path.join(LOG_DIR, f'fold_{fold}'))
 
         # Print sizes
         print(f'The length of the training is {len(train_df)}')
@@ -483,48 +475,20 @@ if __name__ == '__main__':
         # Model creation
         # model = create_model(opt)
         # model.setup(opt)
-
-        # Model loading
-        # file_list = os.listdir(path=MODELS_DIR)
-        # num_files = len(file_list)
-        # print(f'The number of files is {num_files}')
-        #
-        # if num_files > 0 and LOAD:
-        #     import glob
-        #     # total_steps = model.load_networks('latest', models_dir=MODELS_DIR, phase=opt.phase)
-        #     model_files = glob.glob(os.path.join(MODELS_DIR, '*.pth'))
-        #     for some_model_file in model_files:
-        #         print(some_model_file)
-        #     sorted_model_files = sorted(model_files, key=os.path.getmtime)
-        #     # Allows inference to be run on nth latest file!
-        #     latest_model_file = sorted_model_files[-1]
-        #     checkpoint = torch.load(latest_model_file, map_location=torch.device('cuda:0'))
-        #     print(f'Loading {latest_model_file}!')
-        #     loaded_epoch = checkpoint['epoch']
-        #     running_iter = checkpoint['running_iter']
-        #     total_steps = checkpoint['total_steps']
-        # else:
-        #     total_steps = 0
-        #     running_iter = 0
-        #     loaded_epoch = 0
         visualizer = Visualizer(opt)
 
         # Z distribution
-        z_sampler = torch.distributions.Normal(torch.tensor(0.0).to(device=torch.device("cuda:0")),
-                                               torch.tensor(1.0).to(device=torch.device("cuda:0")))
+        # z_sampler = torch.distributions.Normal(torch.tensor(0.0).to(device=torch.device("cuda:0")),
+        #                                        torch.tensor(1.0).to(device=torch.device("cuda:0")))
 
         if opt.phase == "train":
             # Epochs
-            for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
+            for epoch in range(loaded_epoch, opt.niter + opt.niter_decay + 1):
                 # Model to train mode after potential eval call when running validation
                 G_A.train()
                 G_B.train()
                 D_A.train()
                 D_B.train()
-
-                # z
-                Aux_E.train()
-                D_z.train()
 
                 epoch_start_time = time.time()
                 iter_data_time = time.time()
@@ -552,18 +516,13 @@ if __name__ == '__main__':
 
                     # Pass inputs to model and optimise: Forward loop
                     fake_B = G_A(torch.cat((real_A, train_coords), dim=1))
-                    # Need fake z sample
-                    fake_z = Aux_E(real_A)
-                    # Pair fake B with fake z to generate rec_A
-                    rec_A = G_B(torch.cat((fake_B, train_coords), dim=1), fake_z)
+                    # Pair fake B with fake z to generate rec_A: Add Coords as well
+                    rec_A = G_B(torch.cat((fake_B, train_coords), dim=1))
 
                     # Backward loop: Sample z from normal distribution
-                    real_z = z_sampler.sample(fake_z.shape)
-                    fake_A = G_B(torch.cat((real_B, train_coords), dim=1), real_z)
+                    fake_A = G_B(torch.cat((real_B, train_coords), dim=1))
                     # Reconstructed B
                     rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
-                    # Reconstructed z
-                    rec_z = Aux_E(fake_A)
 
                     # Identity
                     # idt_A = G_A(real_B)
@@ -575,13 +534,10 @@ if __name__ == '__main__':
                         adv_start = time.time()
                         D_A_total_loss = torch.zeros(1,)
                         D_B_total_loss = torch.zeros(1,)
-                        D_z_total_loss = torch.zeros(1,)
                         agg_real_D_A_acc = 0
                         agg_fake_D_A_acc = 0
                         agg_real_D_B_acc = 0
                         agg_fake_D_B_acc = 0
-                        agg_real_D_z_acc = 0
-                        agg_fake_D_z_acc = 0
                         # Always have to do at least one run otherwise how is accuracy calculated?
                         for _ in range(1):
                             # Update discriminator by looping N times
@@ -594,10 +550,6 @@ if __name__ == '__main__':
                                                                                                        real_images=real_A,
                                                                                                        discriminator=D_A,
                                                                                                        real_label_flip_chance=opt.label_flipping_chance)
-                            D_z_loss, real_D_z_acc, fake_D_z_acc, _, fake_D_z_out = discriminator_loss(gen_images=fake_z,
-                                                                                                       real_images=real_z,
-                                                                                                       discriminator=D_z,
-                                                                                                       real_label_flip_chance=opt.label_flipping_chance)
 
                             # if overall_disc_acc < disc_acc_thr_upper:
                             D_optimizer.zero_grad()
@@ -605,7 +557,6 @@ if __name__ == '__main__':
                             # Propagate + Log
                             D_B_loss.backward()
                             D_A_loss.backward()
-                            D_z_loss.backward()
                             D_optimizer.step()
 
                             # D_B_scaler.scale(D_B_loss).backward()
@@ -613,7 +564,6 @@ if __name__ == '__main__':
                             # D_B_scaler.update()
                             D_B_total_loss += D_B_loss.item()
                             D_A_total_loss += D_A_loss.item()
-                            D_z_total_loss += D_z_loss.item()
 
                             # Aggregate accuracy: D_B
                             agg_real_D_B_acc += real_D_B_acc
@@ -622,10 +572,6 @@ if __name__ == '__main__':
                             # Aggregate accuracy: D_A
                             agg_real_D_A_acc += real_D_A_acc
                             agg_fake_D_A_acc += fake_D_A_acc
-
-                            # Aggregate accuracy: D_z
-                            agg_real_D_z_acc += real_D_z_acc
-                            agg_fake_D_z_acc += fake_D_z_acc
 
                         # D_B
                         agg_real_D_B_acc = agg_real_D_B_acc / 1
@@ -637,11 +583,6 @@ if __name__ == '__main__':
                         agg_fake_D_A_acc = agg_fake_D_A_acc / 1
                         overall_D_A_acc = (agg_real_D_A_acc + agg_fake_D_A_acc) / 2
 
-                        # D_z
-                        agg_real_D_z_acc = agg_real_D_z_acc / 1
-                        agg_fake_D_z_acc = agg_fake_D_z_acc / 1
-                        overall_D_z_acc = (agg_real_D_z_acc + agg_fake_D_z_acc) / 2
-
                         # Generator training
                         G_optimizer.zero_grad()
 
@@ -650,20 +591,18 @@ if __name__ == '__main__':
                         # Only update generator if discriminator is doing too well
                         G_A_loss = generator_loss(gen_images=fake_B, discriminator=D_B)
                         G_B_loss = generator_loss(gen_images=fake_A, discriminator=D_A)
-                        G_z_loss = generator_loss(gen_images=fake_z, discriminator=D_z)
 
-                        # Cycle losses: G_A and G_B and G_z
-                        A_cycle = criterionCycle(rec_A, real_A) * opt.lambda_cycle
-                        B_cycle = criterionCycle(rec_B, real_B) * opt.lambda_cycle
-                        z_cycle = criterionCycle(rec_z, real_z) * opt.lambda_cycle
+                        # Cycle losses: G_A and G_B
+                        A_cycle = criterionCycle(rec_A, real_A)
+                        B_cycle = criterionCycle(rec_B, real_B)
 
                         # Idt losses
                         # idt_A_loss = criterionIdt(idt_A, real_B)
                         # idt_B_loss = criterionIdt(idt_B, real_A)
 
                         # Total loss
-                        # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + idt_A_loss + idt_B_loss + G_z_loss + z_cycle
-                        total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + G_z_loss + z_cycle
+                        # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + idt_A_loss + idt_B_loss
+                        total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
 
                         # Backward
                         total_G_loss.backward()
@@ -672,33 +611,29 @@ if __name__ == '__main__':
                         G_optimizer.step()
 
                     # if total_steps % opt.print_freq == 0:
-                    break
                     if total_steps % opt.save_latest_freq == 0:
                         print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
                         # Saving
                         # Define ONE file for saving ALL state dicts
                         G_A.cpu()
                         G_B.cpu()
-                        Aux_E.cpu()
                         D_A.cpu()
                         D_B.cpu()
-                        D_z.cpu()
-                        save_filename = f'epoch_{epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
+                        save_filename = f'epoch_{epoch+1}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
                         current_state_dict = {
                             'G_optimizer_state_dict': G_optimizer.state_dict(),
                             'D_optimizer_state_dict': D_optimizer.state_dict(),
                             'G_scheduler_state_dict': G_scheduler.state_dict(),
                             'D_scheduler_state_dict': D_scheduler.state_dict(),
-                            'epoch': epoch,
+                            'epoch': epoch+1,
                             'running_iter': running_iter,
+                            'total_steps': total_steps,
                             'batch_size': opt.batch_size,
                             'patch_size': opt.patch_size,
                             'G_A_state_dict': G_A.state_dict(),
                             'G_B_state_dict': G_B.state_dict(),
-                            'Aux_E_state_dict': Aux_E.state_dict(),
                             'D_A_state_dict': D_A.state_dict(),
                             'D_B_state_dict': D_B.state_dict(),
-                            'D_z_state_dict': D_z.state_dict(),
                         }
 
                         # Actually save
@@ -707,100 +642,80 @@ if __name__ == '__main__':
 
                         G_A.cuda()
                         G_B.cuda()
-                        Aux_E.cuda()
                         D_A.cuda()
                         D_B.cuda()
-                        D_z.cuda()
 
-                    # if total_steps % 250 == 0:
+                    if total_steps % 250 == 0:
                         # Graphs
-                        # writer.add_scalars('Loss/Adversarial',
-                        #                    {"Total_G_loss": total_G_loss,
-                        #                     "Generator_A": G_A_loss,
-                        #                     "Generator_B": G_B_loss,
-                        #                     "Generator_z": G_z_loss,
-                        #                     "Discriminator_A": D_A_loss,
-                        #                     "Discriminator_B": D_B_loss,
-                        #                     "Discriminator_z": D_z_loss}, running_iter)
-                        #
-                        # writer.add_scalars('Loss/Granular_G',
-                        #                    {"total_G_loss": total_G_loss,
-                        #                     "Generator_A": G_A_loss,
-                        #                     "Generator_B": G_B_loss,
-                        #                     "Generator_z": G_z_loss,
-                        #                     "cycle_A": A_cycle,
-                        #                     "cycle_B": B_cycle,
-                        #                     "cycle_z": z_cycle,
-                        #                     # "idt_A": idt_A,
-                        #                     # "idt_B": idt_B
-                        #                     }, running_iter)
+                        writer.add_scalars('Loss/Adversarial',
+                                           {"Total_G_loss": total_G_loss,
+                                            "Generator_A": G_A_loss,
+                                            "Generator_B": G_B_loss,
+                                            "Discriminator_A": D_A_loss,
+                                            "Discriminator_B": D_B_loss,
+                                            }, running_iter)
+
+                        writer.add_scalars('Loss/Granular_G',
+                                           {"total_G_loss": total_G_loss,
+                                            "Generator_A": G_A_loss,
+                                            "Generator_B": G_B_loss,
+                                            "cycle_A": A_cycle,
+                                            "cycle_B": B_cycle,
+                                            # "idt_A": idt_A,
+                                            # "idt_B": idt_B
+                                            }, running_iter)
 
                         # Images
                         # Reals
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(
-                        #                                      real_B[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Visuals/Real_B_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(
-                        #                                      real_A[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Visuals/Real_A_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(
-                        #                                      real_z[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Visuals/Real_z_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        #
-                        # # Generated
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(
-                        #                                      fake_B[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Visuals/Fake_B_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(
-                        #                                      fake_A[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Visuals/Fake_A_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(
-                        #                                      rec_B[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Visuals/Rec_B_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(
-                        #                                      rec_A[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Visuals/Rec_A_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(
-                        #                                      fake_z[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Visuals/Fake_z_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(
+                                                             real_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Visuals/Real_B_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(
+                                                             real_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Visuals/Real_A_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+
+                        # Generated
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(
+                                                             fake_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Visuals/Fake_B_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(
+                                                             fake_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Visuals/Fake_A_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(
+                                                             rec_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Visuals/Rec_B_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(
+                                                             rec_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Visuals/Rec_A_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
                     iter_data_time = time.time()
                     running_iter += 1
 
                     # Clean-up
-                    del real_A, real_B, train_sample, real_z, rec_A, rec_B, rec_z
+                    del real_A, real_B, train_sample, rec_A, rec_B
 
                 if epoch % val_gap == 0:
-                    print("Started validation")
                     G_A.eval()
                     G_B.eval()
                     D_A.eval()
                     D_B.eval()
-                    D_z.eval()
-                    Aux_E.eval()
                     with torch.no_grad():
                         for val_sample in val_loader:
                             # Validation variables
@@ -816,18 +731,13 @@ if __name__ == '__main__':
                             # Forward
                             # Pass inputs to model and optimise: Forward loop
                             val_fake_B = G_A(torch.cat((val_real_A, val_coords), dim=1))
-                            # Need fake z sample
-                            val_fake_z = Aux_E(val_real_A)
                             # Pair fake B with fake z to generate rec_A
-                            val_rec_A = G_B(torch.cat((val_fake_B, val_coords), dim=1), val_fake_z)
+                            val_rec_A = G_B(torch.cat((val_fake_B, val_coords), dim=1))
 
-                            # Backward loop: Sample z from normal distribution
-                            val_real_z = z_sampler.sample(val_fake_z.shape)
-                            val_fake_A = G_B(torch.cat((val_real_B, val_coords), dim=1), val_real_z)
+                            # Backward loop
+                            val_fake_A = G_B(torch.cat((val_real_B, val_coords), dim=1))
                             # Reconstructed B
                             val_rec_B = G_A(torch.cat((val_fake_A, val_coords), dim=1))
-                            # Reconstructed z
-                            val_rec_z = Aux_E(val_fake_A)
 
                             # Identity
                             # val_idt_A = G_A(val_real_B)
@@ -843,74 +753,65 @@ if __name__ == '__main__':
                                                                                          real_images=val_real_A,
                                                                                          discriminator=D_A,
                                                                                          real_label_flip_chance=0.0)
-                            val_D_z_loss, _, _, _, val_fake_D_z_out = discriminator_loss(gen_images=val_fake_z,
-                                                                                         real_images=val_real_z,
-                                                                                         discriminator=D_z,
-                                                                                         real_label_flip_chance=0.0)
 
                             # Generator
                             val_G_A_loss = generator_loss(gen_images=val_fake_B, discriminator=D_B)
                             val_G_B_loss = generator_loss(gen_images=val_fake_A, discriminator=D_A)
-                            val_G_z_loss = generator_loss(gen_images=val_fake_z, discriminator=D_z)
 
                             # Cycle losses: G_A and G_B
                             val_A_cycle = criterionCycle(val_rec_A, val_real_A)
                             val_B_cycle = criterionCycle(val_rec_B, val_real_B)
-                            val_z_cycle = criterionCycle(val_rec_z, val_real_z)
 
                             # Idt losses
                             # val_idt_A_loss = criterionIdt(val_idt_A, val_real_B)
                             # val_idt_B_loss = criterionIdt(val_idt_B, val_real_A)
 
                             # Total loss
-                            # val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_idt_A_loss + val_idt_B_loss + val_G_z_loss + val_z_cycle
-                            val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_G_z_loss + val_z_cycle
+                            # val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_idt_A_loss + val_idt_B_loss
+                            val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle
 
                         # Graphs
-                        # writer.add_scalars('Loss/Val_Adversarial',
-                        #                    {
-                        #                     "Generator_A": val_G_A_loss,
-                        #                     "Generator_B": val_G_B_loss,
-                        #                     "Generator_z": val_G_z_loss,
-                        #                     "Discriminator_A": val_D_A_loss,
-                        #                     "Discriminator_B": val_D_B_loss,
-                        #                     "Discriminator_z": val_D_z_loss}, running_iter)
-                        #
-                        # writer.add_scalars('Loss/Val_Granular_G',
-                        #                    {"total_G_loss": val_total_G_loss,
-                        #                     "Generator_A": val_G_A_loss,
-                        #                     "Generator_B": val_G_B_loss,
-                        #                     "Generator_z": val_G_z_loss,
-                        #                     "cycle_A": val_A_cycle,
-                        #                     "cycle_B": val_B_cycle,
-                        #                     "cycle_z": val_z_cycle,
-                        #                     # "idt_A": val_idt_A,
-                        #                     # "idt_B": val_idt_B
-                        #                     }, running_iter)
+                        writer.add_scalars('Loss/Val_Adversarial',
+                                           {
+                                            "Generator_A": val_G_A_loss,
+                                            "Generator_B": val_G_B_loss,
+                                            "Discriminator_A": val_D_A_loss,
+                                            "Discriminator_B": val_D_B_loss,
+                                           }, running_iter)
 
-                        # Save models
+                        writer.add_scalars('Loss/Val_Granular_G',
+                                           {"total_G_loss": val_total_G_loss,
+                                            "Generator_A": val_G_A_loss,
+                                            "Generator_B": val_G_B_loss,
+                                            "cycle_A": val_A_cycle,
+                                            "cycle_B": val_B_cycle,
+                                            # "idt_A": val_idt_A,
+                                            # "idt_B": val_idt_B
+                                            }, running_iter)
+
+                        # Saving
+                        print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
+                        # Saving
+                        # Define ONE file for saving ALL state dicts
                         G_A.cpu()
                         G_B.cpu()
                         D_A.cpu()
                         D_B.cpu()
-                        D_z.cpu()
-                        Aux_E.cpu()
-                        save_filename = f'epoch_{epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
+                        save_filename = f'epoch_{epoch+1}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
                         current_state_dict = {
                             'G_optimizer_state_dict': G_optimizer.state_dict(),
                             'D_optimizer_state_dict': D_optimizer.state_dict(),
                             'G_scheduler_state_dict': G_scheduler.state_dict(),
                             'D_scheduler_state_dict': D_scheduler.state_dict(),
-                            'epoch': epoch,
+                            'epoch': epoch+1,
                             'running_iter': running_iter,
+                            'total_steps': total_steps,
                             'batch_size': opt.batch_size,
                             'patch_size': opt.patch_size,
                             'G_A_state_dict': G_A.state_dict(),
                             'G_B_state_dict': G_B.state_dict(),
                             'D_A_state_dict': D_A.state_dict(),
                             'D_B_state_dict': D_B.state_dict(),
-                            'D_z_state_dict': D_z.state_dict(),
-                            'Aux_E_state_dict': Aux_E.state_dict(),
                         }
 
                         # Actually save
@@ -921,56 +822,44 @@ if __name__ == '__main__':
                         G_B.cuda()
                         D_A.cuda()
                         D_B.cuda()
-                        D_z.cuda()
-                        Aux_E.cuda()
 
                         # Images
                         # Reals
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(val_real_B[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Validation/Real_B_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(val_real_A[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Validation/Real_A_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(val_real_z[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Validation/Real_z_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        #
-                        # # Generated
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(val_fake_B[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Validation/Fake_B_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(val_fake_A[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Validation/Fake_A_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(val_rec_B[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Validation/Rec_B_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(val_rec_A[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Validation/Rec_A_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(val_fake_z[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Validation/Fake_z_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(val_real_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Validation/Real_B_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(val_real_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Validation/Real_A_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+
+                        # Generated
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(val_fake_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Validation/Fake_B_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(val_fake_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Validation/Fake_A_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(val_rec_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Validation/Rec_B_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(val_rec_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Validation/Rec_A_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
 
                         # Clean-up
-                        del val_real_A, val_real_B, val_sample, val_real_z, val_rec_A, val_rec_B, val_rec_z, val_coords
+                        del val_real_A, val_real_B, val_sample, val_rec_A, val_rec_B
 
                 print(f'End of epoch {epoch} / {opt.niter} \t Time Taken: {time.time() - epoch_start_time:.3f} sec')
                 G_scheduler.step(epoch)

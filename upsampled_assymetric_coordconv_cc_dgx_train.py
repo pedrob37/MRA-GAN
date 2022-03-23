@@ -9,11 +9,11 @@ from utils.utils import create_path, save_img, CoordConvd, VAE
 import monai
 import pandas as pd
 import numpy as np
-# from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 import torch.nn as nn
-from models.model_transconvs_norm import nnUNet
+from models.model_upsamps_norm import nnUNet
 from models.pix2pix_disc_networks import NoisyMultiscaleDiscriminator3D, GANLoss
-# import monai.visualize.img2tensorboard as img2tensorboard
+import monai.visualize.img2tensorboard as img2tensorboard
 from models.resnets import resnet10
 from monai.transforms import (Compose,
                               LoadImaged,
@@ -38,8 +38,8 @@ if __name__ == '__main__':
 
     ### MONAI
     # Data directory
-    images_dir = os.path.join(opt.data_path, 'Images')  # MRA
-    labels_dir = os.path.join(opt.data_path, 'Labels')  # Binary
+    images_dir = os.path.join(opt.data_path, 'Images')  # MRA!
+    labels_dir = os.path.join(opt.data_path, 'Labels')  # Binary!
 
     # Read csv + add directory to filenames
     df = pd.read_csv(opt.csv_file)
@@ -213,10 +213,10 @@ if __name__ == '__main__':
     ## Relevant job directories
     if opt.phase == "train":
         # Main directories
-        CACHE_DIR = f"/data/Outputs-MRA-GAN/Cache/{opt.job_name}"
-        FIG_DIR = f"/data/Outputs-MRA-GAN/Figures/{opt.job_name}"
-        LOG_DIR = f'/data/Outputs-MRA-GAN/Logs/{opt.job_name}'
-        MODELS_DIR = f"/data/Outputs-MRA-GAN/Models/{opt.job_name}"
+        CACHE_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Cache/{opt.job_name}"
+        FIG_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Figures/{opt.job_name}"
+        LOG_DIR = f'/nfs/home/pedro/Outputs-MRA-GAN/Logs/{opt.job_name}'
+        MODELS_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Models/{opt.job_name}"
 
         # Create directories
         create_path(CACHE_DIR)
@@ -227,10 +227,10 @@ if __name__ == '__main__':
         opt.job_name = opt.job_name.split('-', 1)[1]
 
         # Directories should already exist
-        CACHE_DIR = f"/data/Outputs-MRA-GAN/Cache/{opt.job_name}"
-        FIG_DIR = f"/data/Outputs-MRA-GAN/Figures/{opt.job_name}"
-        LOG_DIR = f'/data/Outputs-MRA-GAN/Logs/{opt.job_name}'
-        MODELS_DIR = f"/data/Outputs-MRA-GAN/Models/{opt.job_name}"
+        CACHE_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Cache/{opt.job_name}"
+        FIG_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Figures/{opt.job_name}"
+        LOG_DIR = f'/nfs/home/pedro/Outputs-MRA-GAN/Logs/{opt.job_name}'
+        MODELS_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Models/{opt.job_name}"
     else:
         raise NameError("Job phase is test but job name does not start with inf!")
 
@@ -239,7 +239,7 @@ if __name__ == '__main__':
     opt.log_dir = LOG_DIR
 
     # Other variables
-    val_gap = 2
+    val_gap = 5
     running_iter = 0
     LOAD = True
 
@@ -259,11 +259,13 @@ if __name__ == '__main__':
         elif opt.final_act == "sigmoid":
             G_A_final_act = torch.nn.Sigmoid()
         G_A = nnUNet(4, 1, dropout_level=0, final_act=G_A_final_act)
-        G_B = nnUNet(4, 1, dropout_level=0, z_concat_flag=True, z_output=8)
+        G_B = nnUNet(4, 1, dropout_level=0, z_concat_flag=True, z_output=4)
 
         # Encoder
         # Aux_E = resnet10(pretrained=False, n_input_channels=1)
-        Aux_E = VAE(z_dim=512, dropout_rate=0.0, linear_in_feats=1024)
+        Aux_E = VAE(z_dim=512,
+                    linear_in_feats=2048,
+                    dropout_rate=0.0)
 
         # Discriminators
         D_A = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
@@ -274,7 +276,7 @@ if __name__ == '__main__':
                                              opt.n_layers_D,
                                              nn.InstanceNorm3d, False, 1, False)
 
-        D_z = NoisyMultiscaleDiscriminator3D(8, opt.ndf,
+        D_z = NoisyMultiscaleDiscriminator3D(4, opt.ndf,
                                              3,
                                              nn.InstanceNorm3d, False, 1, False)
 
@@ -427,7 +429,7 @@ if __name__ == '__main__':
         val_df.reset_index(drop=True, inplace=True)
 
         # Writer
-        # writer = SummaryWriter(log_dir=os.path.join(LOG_DIR, f'fold_{fold}'))
+        writer = SummaryWriter(log_dir=os.path.join(LOG_DIR, f'fold_{fold}'))
 
         # Print sizes
         print(f'The length of the training is {len(train_df)}')
@@ -672,7 +674,6 @@ if __name__ == '__main__':
                         G_optimizer.step()
 
                     # if total_steps % opt.print_freq == 0:
-                    break
                     if total_steps % opt.save_latest_freq == 0:
                         print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
                         # Saving
@@ -712,89 +713,88 @@ if __name__ == '__main__':
                         D_B.cuda()
                         D_z.cuda()
 
-                    # if total_steps % 250 == 0:
+                    if total_steps % 250 == 0:
                         # Graphs
-                        # writer.add_scalars('Loss/Adversarial',
-                        #                    {"Total_G_loss": total_G_loss,
-                        #                     "Generator_A": G_A_loss,
-                        #                     "Generator_B": G_B_loss,
-                        #                     "Generator_z": G_z_loss,
-                        #                     "Discriminator_A": D_A_loss,
-                        #                     "Discriminator_B": D_B_loss,
-                        #                     "Discriminator_z": D_z_loss}, running_iter)
-                        #
-                        # writer.add_scalars('Loss/Granular_G',
-                        #                    {"total_G_loss": total_G_loss,
-                        #                     "Generator_A": G_A_loss,
-                        #                     "Generator_B": G_B_loss,
-                        #                     "Generator_z": G_z_loss,
-                        #                     "cycle_A": A_cycle,
-                        #                     "cycle_B": B_cycle,
-                        #                     "cycle_z": z_cycle,
-                        #                     # "idt_A": idt_A,
-                        #                     # "idt_B": idt_B
-                        #                     }, running_iter)
+                        writer.add_scalars('Loss/Adversarial',
+                                           {"Total_G_loss": total_G_loss,
+                                            "Generator_A": G_A_loss,
+                                            "Generator_B": G_B_loss,
+                                            "Generator_z": G_z_loss,
+                                            "Discriminator_A": D_A_loss,
+                                            "Discriminator_B": D_B_loss,
+                                            "Discriminator_z": D_z_loss}, running_iter)
+
+                        writer.add_scalars('Loss/Granular_G',
+                                           {"total_G_loss": total_G_loss,
+                                            "Generator_A": G_A_loss,
+                                            "Generator_B": G_B_loss,
+                                            "Generator_z": G_z_loss,
+                                            "cycle_A": A_cycle,
+                                            "cycle_B": B_cycle,
+                                            "cycle_z": z_cycle,
+                                            # "idt_A": idt_A,
+                                            # "idt_B": idt_B
+                                            }, running_iter)
 
                         # Images
                         # Reals
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(
-                        #                                      real_B[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Visuals/Real_B_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(
-                        #                                      real_A[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Visuals/Real_A_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(
-                        #                                      real_z[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Visuals/Real_z_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        #
-                        # # Generated
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(
-                        #                                      fake_B[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Visuals/Fake_B_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(
-                        #                                      fake_A[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Visuals/Fake_A_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(
-                        #                                      rec_B[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Visuals/Rec_B_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(
-                        #                                      rec_A[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Visuals/Rec_A_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(
-                        #                                      fake_z[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Visuals/Fake_z_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(
+                                                             real_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Visuals/Real_B_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(
+                                                             real_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Visuals/Real_A_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(
+                                                             real_z[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Visuals/Real_z_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+
+                        # Generated
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(
+                                                             fake_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Visuals/Fake_B_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(
+                                                             fake_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Visuals/Fake_A_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(
+                                                             rec_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Visuals/Rec_B_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(
+                                                             rec_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Visuals/Rec_A_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(
+                                                             fake_z[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Visuals/Fake_z_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
                     iter_data_time = time.time()
                     running_iter += 1
 
                     # Clean-up
-                    del real_A, real_B, train_sample, real_z, rec_A, rec_B, rec_z
+                    del real_A, real_B, train_sample, real_z, rec_A, rec_B, rec_z, train_coords
 
                 if epoch % val_gap == 0:
-                    print("Started validation")
                     G_A.eval()
                     G_B.eval()
                     D_A.eval()
@@ -867,26 +867,26 @@ if __name__ == '__main__':
                             val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_G_z_loss + val_z_cycle
 
                         # Graphs
-                        # writer.add_scalars('Loss/Val_Adversarial',
-                        #                    {
-                        #                     "Generator_A": val_G_A_loss,
-                        #                     "Generator_B": val_G_B_loss,
-                        #                     "Generator_z": val_G_z_loss,
-                        #                     "Discriminator_A": val_D_A_loss,
-                        #                     "Discriminator_B": val_D_B_loss,
-                        #                     "Discriminator_z": val_D_z_loss}, running_iter)
-                        #
-                        # writer.add_scalars('Loss/Val_Granular_G',
-                        #                    {"total_G_loss": val_total_G_loss,
-                        #                     "Generator_A": val_G_A_loss,
-                        #                     "Generator_B": val_G_B_loss,
-                        #                     "Generator_z": val_G_z_loss,
-                        #                     "cycle_A": val_A_cycle,
-                        #                     "cycle_B": val_B_cycle,
-                        #                     "cycle_z": val_z_cycle,
-                        #                     # "idt_A": val_idt_A,
-                        #                     # "idt_B": val_idt_B
-                        #                     }, running_iter)
+                        writer.add_scalars('Loss/Val_Adversarial',
+                                           {
+                                            "Generator_A": val_G_A_loss,
+                                            "Generator_B": val_G_B_loss,
+                                            "Generator_z": val_G_z_loss,
+                                            "Discriminator_A": val_D_A_loss,
+                                            "Discriminator_B": val_D_B_loss,
+                                            "Discriminator_z": val_D_z_loss}, running_iter)
+
+                        writer.add_scalars('Loss/Val_Granular_G',
+                                           {"total_G_loss": val_total_G_loss,
+                                            "Generator_A": val_G_A_loss,
+                                            "Generator_B": val_G_B_loss,
+                                            "Generator_z": val_G_z_loss,
+                                            "cycle_A": val_A_cycle,
+                                            "cycle_B": val_B_cycle,
+                                            "cycle_z": val_z_cycle,
+                                            # "idt_A": val_idt_A,
+                                            # "idt_B": val_idt_B
+                                            }, running_iter)
 
                         # Save models
                         G_A.cpu()
@@ -926,48 +926,48 @@ if __name__ == '__main__':
 
                         # Images
                         # Reals
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(val_real_B[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Validation/Real_B_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(val_real_A[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Validation/Real_A_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(val_real_z[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Validation/Real_z_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        #
-                        # # Generated
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(val_fake_B[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Validation/Fake_B_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(val_fake_A[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Validation/Fake_A_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(val_rec_B[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Validation/Rec_B_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(val_rec_A[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Validation/Rec_A_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
-                        # img2tensorboard.add_animated_gif(writer=writer,
-                        #                                  image_tensor=normalise_images(val_fake_z[0, 0, ...][None, ...].cpu().detach().numpy()),
-                        #                                  tag=f'Validation/Fake_z_fold_{fold}',
-                        #                                  max_out=opt.patch_size // 4,
-                        #                                  scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(val_real_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Validation/Real_B_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(val_real_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Validation/Real_A_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(val_real_z[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Validation/Real_z_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+
+                        # Generated
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(val_fake_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Validation/Fake_B_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(val_fake_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Validation/Fake_A_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(val_rec_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Validation/Rec_B_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(val_rec_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Validation/Rec_A_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
+                        img2tensorboard.add_animated_gif(writer=writer,
+                                                         image_tensor=normalise_images(val_fake_z[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         tag=f'Validation/Fake_z_fold_{fold}',
+                                                         max_out=opt.patch_size // 4,
+                                                         scale_factor=255, global_step=running_iter)
 
                         # Clean-up
                         del val_real_A, val_real_B, val_sample, val_real_z, val_rec_A, val_rec_B, val_rec_z, val_coords
