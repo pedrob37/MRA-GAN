@@ -337,7 +337,10 @@ if __name__ == '__main__':
             print(f'Loading {latest_model_file}!')
             loaded_epoch = checkpoint['epoch']
             running_iter = checkpoint['running_iter']
-            total_steps = checkpoint['total_steps']
+            try:
+                total_steps = checkpoint['total_steps']
+            except KeyError:
+                print("Total steps not found")
 
             # Get model file specific to fold
             # loaded_model_file = f'epoch_{loaded_epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
@@ -692,6 +695,7 @@ if __name__ == '__main__':
                             'D_scheduler_state_dict': D_scheduler.state_dict(),
                             'epoch': epoch,
                             'running_iter': running_iter,
+                            'total_steps': total_steps,
                             'batch_size': opt.batch_size,
                             'patch_size': opt.patch_size,
                             'G_A_state_dict': G_A.state_dict(),
@@ -903,6 +907,7 @@ if __name__ == '__main__':
                             'D_scheduler_state_dict': D_scheduler.state_dict(),
                             'epoch': epoch,
                             'running_iter': running_iter,
+                            'total_steps': total_steps,
                             'batch_size': opt.batch_size,
                             'patch_size': opt.patch_size,
                             'G_A_state_dict': G_A.state_dict(),
