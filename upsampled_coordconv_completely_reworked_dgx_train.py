@@ -11,7 +11,6 @@ import pandas as pd
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn as nn
-from models.model_upsamps_norm import nnUNet
 from models.pix2pix_disc_networks import NoisyMultiscaleDiscriminator3D, GANLoss
 import monai.visualize.img2tensorboard as img2tensorboard
 from models.resnets import resnet10
@@ -35,6 +34,19 @@ if __name__ == '__main__':
 
     # -----  Loading the init options -----
     opt = TrainOptions().parse()
+
+    # Model choice: Trilinear, nearest neighbour, or nearest neighbour + subpixel convolution
+    if opt.upsampling_method == 'nearest':
+        from models.model_nn_upsamps_norm import nnUNet
+        print("Using nearest neighbour interpolation for upsampling!")
+    elif opt.upsampling_method == 'trilinear':
+        from models.model_upsamps_norm import nnUNet
+        print("Using trilinear interpolation for upsampling!")
+    elif opt.upsampling_method == 'subpixel':
+        from models.model_subpixel_upsamps_norm import nnUNet
+        print("Using nearest neighbour interpolation + subpixel convolution for upsampling!")
+    else:
+        raise SyntaxError("Missing upsampling method parameter!")
 
     ### MONAI
     # Data directory
