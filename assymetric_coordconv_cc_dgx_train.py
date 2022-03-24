@@ -341,6 +341,7 @@ if __name__ == '__main__':
                 total_steps = checkpoint['total_steps']
             except KeyError:
                 print("Total steps not found")
+                total_steps = running_iter
 
             # Get model file specific to fold
             # loaded_model_file = f'epoch_{loaded_epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
