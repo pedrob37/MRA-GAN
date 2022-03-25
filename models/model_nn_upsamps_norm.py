@@ -41,7 +41,7 @@ class nnUNet(nn.Module):
                 torch.nn.InstanceNorm3d(final_channel),
                 torch.nn.LeakyReLU(),
                 torch.nn.Dropout(block_dropout).train(True),
-                torch.nn.Upsample(scale_factor=2, mode='nearest', align_corners=True)
+                torch.nn.Upsample(scale_factor=2, mode='nearest')
         )
         return block
 
@@ -116,7 +116,7 @@ class nnUNet(nn.Module):
                             # torch.nn.Conv3d(kernel_size=3, in_channels=480, out_channels=240, padding=1),
                             torch.nn.LeakyReLU(),
                             # torch.nn.BatchNorm3d(512),
-                            torch.nn.Upsample(scale_factor=2, mode='nearest', align_corners=True)
+                            torch.nn.Upsample(scale_factor=2, mode='nearest')
         )
 
         # Decode
