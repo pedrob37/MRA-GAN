@@ -456,18 +456,18 @@ if __name__ == '__main__':
                                                     transform=train_transforms,
                                                     cache_dir=CACHE_DIR
                                                     )
-    
+
             train_loader = DataLoader(dataset=train_ds,
                                       batch_size=opt.batch_size,
                                       shuffle=True,
                                       num_workers=opt.workers,
                                       )
-    
+
             val_ds = monai.data.PersistentDataset(data=val_data_dict,
                                                   transform=val_transforms,
                                                   cache_dir=CACHE_DIR
                                                   )
-    
+
             val_loader = DataLoader(dataset=val_ds,
                                     batch_size=opt.batch_size,
                                     shuffle=True,
@@ -902,10 +902,10 @@ if __name__ == '__main__':
                     label_affine = inf_sample['label_meta_dict']['affine'][0, ...]
 
                     # Pass inputs to generators
-                    fake_B = sliding_window_inference(inf_real_A, 160, 1, G_A,
+                    fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), 160, 1, G_A,
                                                       overlap=overlap,
                                                       mode='gaussian')
-                    fake_A = sliding_window_inference(inf_real_B, 160, 1, G_B,
+                    fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_coords), dim=1), 160, 1, G_B,
                                                       overlap=overlap,
                                                       mode='gaussian')
 
