@@ -357,12 +357,12 @@ def custom_sliding_window_inference(
         for data in slice_batches:
             if not uncertainty_flag and inputs_type == tuple:
                 # print(f"SWI data shape: {data.shape}")
-                seg_prob, _ = predictor(data, phys_inputs)  # batched patch segmentation
+                seg_prob = predictor(data, phys_inputs)  # batched patch segmentation
                 output_rois.append(seg_prob)
             elif inputs_type != tuple:
                 try:
                     # print(f"SWI data shape: {data.shape}")
-                    seg_prob, _ = predictor(data)  # batched patch segmentation
+                    seg_prob = predictor(data)  # batched patch segmentation
                     output_rois.append(seg_prob)
                 except TypeError:
                     # print(f"SWI data shape: {data.shape}")
