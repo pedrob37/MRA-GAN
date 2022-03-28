@@ -1007,22 +1007,22 @@ if __name__ == '__main__':
                     label_affine = inf_sample['label_meta_dict']['affine'][0, ...]
 
                     # Pass inputs to generators
-                    inf_fake_z = Aux_E(inf_real_A)
-                    inf_real_z = z_sampler.sample(inf_fake_z.shape)
+                    # inf_fake_z = Aux_E(inf_real_A)
+                    inf_real_z = z_sampler.sample((1, 4, 8, 8, 8))
 
-                    fake_B = custom_sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), 128, 1, G_A,
+                    fake_B = custom_sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), 160, 1, G_A,
                                                       overlap=overlap,
                                                       mode='gaussian')
-                    fake_A = custom_sliding_window_inference((torch.cat((inf_real_B, inf_coords), dim=1), inf_real_z), 128, 1,
+                    fake_A = custom_sliding_window_inference((torch.cat((inf_real_B, inf_coords), dim=1), inf_real_z), 160, 1,
                                                       G_B,
                                                       overlap=overlap,
                                                       mode='gaussian')
 
-                    rec_A = custom_sliding_window_inference((torch.cat((fake_B, inf_coords), dim=1), inf_real_z), 128, 1,
+                    rec_A = custom_sliding_window_inference((torch.cat((fake_B, inf_coords), dim=1), inf_real_z), 160, 1,
                                                      G_B,
                                                      overlap=overlap,
                                                      mode='gaussian')
-                    rec_B = custom_sliding_window_inference(torch.cat((fake_A, inf_coords), dim=1), 128, 1,
+                    rec_B = custom_sliding_window_inference(torch.cat((fake_A, inf_coords), dim=1), 160, 1,
                                                      G_A,
                                                      overlap=overlap,
                                                      mode='gaussian')
