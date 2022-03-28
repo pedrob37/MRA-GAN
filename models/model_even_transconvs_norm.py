@@ -5,16 +5,16 @@ import torch.optim as optim
 
 
 class nnUNet(nn.Module):
-    def contracting_block(self, in_channels, out_channels, kernel_size=3, block_dropout=0.0):
+    def contracting_block(self, in_channels, out_channels, kernel_size=4, block_dropout=0.0):
         from monai.networks.nets import unet
         """
         This function creates one contracting block
         """
         block = torch.nn.Sequential(
-                    torch.nn.Conv3d(kernel_size=kernel_size, in_channels=in_channels, out_channels=out_channels, padding=1),
+                    torch.nn.Conv3d(kernel_size=kernel_size, in_channels=in_channels, out_channels=out_channels, padding=1, stride=2, dilation=1),
                     torch.nn.InstanceNorm3d(out_channels),
                     torch.nn.LeakyReLU(),
-                    torch.nn.Conv3d(kernel_size=kernel_size, in_channels=out_channels, out_channels=out_channels, padding=1),
+                    torch.nn.Conv3d(kernel_size=kernel_size, in_channels=out_channels, out_channels=out_channels, padding=1, stride=2, dilation=1),
                     torch.nn.InstanceNorm3d(out_channels),
                     torch.nn.LeakyReLU(),
                     torch.nn.Dropout(block_dropout).train(True),
@@ -28,44 +28,48 @@ class nnUNet(nn.Module):
         conv_concat = torch.cat([conv_input, z_input], dim=concat_axis)
         return conv_concat
 
-    def expansive_block(self, in_channels, mid_channel, final_channel, kernel_size=3, block_dropout=0.0):
+    def expansive_block(self, in_channels, mid_channel, final_channel, kernel_size=4, block_dropout=0.0):
         """
         This function creates one expansive block
         """
         block = torch.nn.Sequential(
-                torch.nn.Conv3d(kernel_size=kernel_size, in_channels=in_channels, out_channels=mid_channel, padding=1),
+                torch.nn.Conv3d(kernel_size=kernel_size,
+                                in_channels=in_channels,
+                                out_channels=mid_channel,
+                                padding=1,
+                                stride=2),
                 torch.nn.InstanceNorm3d(mid_channel),
                 torch.nn.LeakyReLU(),
                 # torch.nn.BatchNorm3d(mid_channel),
                 torch.nn.ConvTranspose3d(in_channels=mid_channel,
                                          out_channels=final_channel,
-                                         kernel_size=3,
+                                         kernel_size=kernel_size,
                                          stride=2,
                                          padding=1,
-                                         output_padding=1),
+                                         output_padding=0),
                 torch.nn.InstanceNorm3d(final_channel),
                 torch.nn.LeakyReLU(),
                 torch.nn.Dropout(block_dropout).train(True)
         )
         return block
 
-    def penultimate_block(self, in_channels, mid_channel, kernel_size=3, block_dropout=0.0):
+    def penultimate_block(self, in_channels, mid_channel, kernel_size=4, block_dropout=0.0):
         """
         This returns final block
         """
         block = torch.nn.Sequential(
-                torch.nn.Conv3d(kernel_size=kernel_size, in_channels=in_channels, out_channels=mid_channel, padding=1),
+                torch.nn.Conv3d(kernel_size=kernel_size, in_channels=in_channels, out_channels=mid_channel, padding=1, stride=2),
                 torch.nn.InstanceNorm3d(mid_channel),
                 torch.nn.LeakyReLU(),
                 # torch.nn.BatchNorm3d(mid_channel),
-                torch.nn.Conv3d(kernel_size=kernel_size, in_channels=mid_channel, out_channels=mid_channel, padding=1),
+                torch.nn.Conv3d(kernel_size=kernel_size, in_channels=mid_channel, out_channels=mid_channel, padding=1, stride=2),
                 torch.nn.InstanceNorm3d(mid_channel),
                 torch.nn.LeakyReLU(),
                 torch.nn.Dropout(block_dropout).train(True),
                 )
         return block
 
-    def final_block(self, mid_channel, out_channels, kernel_size=3, unc_flag=False, final_act=torch.nn.LeakyReLU()):
+    def final_block(self, mid_channel, out_channels, kernel_size=4, unc_flag=False, final_act=torch.nn.LeakyReLU()):
         """
         This returns final block
         """
@@ -74,7 +78,8 @@ class nnUNet(nn.Module):
                     torch.nn.Conv3d(kernel_size=kernel_size,
                                     in_channels=mid_channel,
                                     out_channels=out_channels,
-                                    padding=1),
+                                    padding=1,
+                                    stride=2),
                     # final_act,
                     final_act,
                     # torch.nn.BatchNorm3d(out_channels),
@@ -111,12 +116,13 @@ class nnUNet(nn.Module):
 
         # Bottleneck
         self.bottleneck = torch.nn.Sequential(
-                            torch.nn.Conv3d(kernel_size=3, in_channels=240+z_output, out_channels=480, padding=1),
+                            torch.nn.Conv3d(kernel_size=4, in_channels=240+z_output, out_channels=480, padding=1, stride=2, dilation=1),
                             torch.nn.InstanceNorm3d(480),
                             torch.nn.LeakyReLU(),
                             # torch.nn.BatchNorm3d(512),
-                            torch.nn.ConvTranspose3d(in_channels=480, out_channels=240, kernel_size=3, stride=2,
-                                                     padding=1, output_padding=1),
+                            torch.nn.ConvTranspose3d(in_channels=480, out_channels=240, kernel_size=4, stride=2,
+                                                     dilation=1,
+                                                     padding=1, output_padding=0),
                             torch.nn.InstanceNorm3d(480),
                             # torch.nn.Conv3d(kernel_size=3, in_channels=480, out_channels=240, padding=1),
                             torch.nn.LeakyReLU(),

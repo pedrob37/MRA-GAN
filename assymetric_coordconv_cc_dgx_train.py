@@ -196,7 +196,7 @@ if __name__ == '__main__':
                                   #             spatial_size=opt.patch_size),
                                   ToTensord(keys=['image', 'label', 'coords'])])
     elif opt.phase == "test":
-        from monai.inferers import sliding_window_inference
+        from utils.utils import custom_sliding_window_inference
         inf_transforms = Compose([LoadImaged(keys=['image', 'label']),
                                   AddChanneld(keys=['image', 'label']),
                                   CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
@@ -982,38 +982,65 @@ if __name__ == '__main__':
                 G_scheduler.step(epoch)
                 D_scheduler.step(epoch)
         elif opt.phase == "test":
+            # Overlap and sliding window inference
+            overlap = 0.3
+
+
+            # Normalisation
+            def normalise_images(array):
+                return (array - np.min(array)) / (np.max(array) - np.min(array))
+
+
             # Carry out inference
-            model.eval()
+            G_A.eval()
+            G_B.eval()
+            Aux_E.eval()
             with torch.no_grad():
                 for inf_sample in inf_loader:
-                    inf_image = inf_sample['image']
-                    inf_label = inf_sample['label']
+                    inf_real_A = inf_sample['image'].cuda()
+                    inf_real_B = inf_sample['label'].cuda()
+                    inf_coords = inf_sample['coords'].cuda()
+
                     image_name = os.path.basename(inf_sample["image_meta_dict"]["filename_or_obj"][0])
                     label_name = os.path.basename(inf_sample["label_meta_dict"]["filename_or_obj"][0])
                     inf_affine = inf_sample['image_meta_dict']['affine'][0, ...]
                     label_affine = inf_sample['label_meta_dict']['affine'][0, ...]
 
-                    model.set_input([inf_image, inf_label])
-                    # model.optimize_parameters(training=False)
-                    del inf_image, inf_label, inf_sample
+                    # Pass inputs to generators
+                    inf_fake_z = Aux_E(inf_real_A)
+                    inf_real_z = z_sampler.sample(inf_fake_z.shape)
 
-                    # Inference
-                    fake_B, rec_A, fake_A, rec_B = model.test_forward(overlap=0.0)
+                    fake_B = custom_sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), 160, 1, G_A,
+                                                      overlap=overlap,
+                                                      mode='gaussian')
+                    fake_A = custom_sliding_window_inference((torch.cat((inf_real_B, inf_coords), dim=1), inf_real_z), 160, 1,
+                                                      G_B,
+                                                      overlap=overlap,
+                                                      mode='gaussian')
 
-                    # Saving
-                    def normalise_images(array):
-                        import numpy as np
-                        return (array - np.min(array)) / (np.max(array) - np.min(array))
-                    
-                    save_img(normalise_images(fake_B.cpu().detach().squeeze().numpy()),
-                             inf_affine,
-                             os.path.join(FIG_DIR, "Fake_B_" + os.path.basename(image_name)))
-                    # save_img(normalise_images(rec_A.cpu().detach().squeeze().numpy()),
-                    #          inf_affine,
-                    #          os.path.join(FIG_DIR, "Rec_A_" + os.path.basename(image_name)))
+                    rec_A = custom_sliding_window_inference((torch.cat((fake_B, inf_coords), dim=1), inf_real_z), 160, 1,
+                                                     G_B,
+                                                     overlap=overlap,
+                                                     mode='gaussian')
+                    rec_B = custom_sliding_window_inference(torch.cat((fake_A, inf_coords), dim=1), 160, 1,
+                                                     G_A,
+                                                     overlap=overlap,
+                                                     mode='gaussian')
+
+                    del inf_real_A, inf_real_B, inf_sample, inf_coords
+
+                    # Saving: Fakes
                     save_img(normalise_images(fake_A.cpu().detach().squeeze().numpy()),
                              inf_affine,
                              os.path.join(FIG_DIR, "Fake_A_" + os.path.basename(label_name)))
-                    # save_img(normalise_images(rec_B.cpu().detach().squeeze().numpy()),
-                    #          inf_affine,
-                    #          os.path.join(FIG_DIR, "Rec_B_" + os.path.basename(label_name)))
+                    save_img(normalise_images(fake_B.cpu().detach().squeeze().numpy()),
+                             inf_affine,
+                             os.path.join(FIG_DIR, "Fake_B_" + os.path.basename(image_name)))
+
+                    # Saving: Reconstructions
+                    save_img(normalise_images(rec_A.cpu().detach().squeeze().numpy()),
+                             inf_affine,
+                             os.path.join(FIG_DIR, "Rec_A_" + os.path.basename(image_name)))
+                    save_img(normalise_images(rec_B.cpu().detach().squeeze().numpy()),
+                             inf_affine,
+                             os.path.join(FIG_DIR, "Rec_B_" + os.path.basename(label_name)))
