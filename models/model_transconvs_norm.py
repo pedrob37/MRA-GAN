@@ -142,24 +142,24 @@ class nnUNet(nn.Module):
 
     def forward(self, x, z_input=None):
         # Encode
-        print(f'x1 shape is {x.shape}')
+        # print(f'x1 shape is {x.shape}')
         encode_block1 = self.conv_encode1(x)
-        print(f'x2 shape is {encode_block1.shape}')
+        # print(f'x2 shape is {encode_block1.shape}')
         encode_pool1 = self.conv_maxpool1(encode_block1)
 
-        print(f'x3 shape is {encode_pool1.shape}')
+        # print(f'x3 shape is {encode_pool1.shape}')
         encode_block2 = self.conv_encode2(encode_pool1)
-        print(f'x4 shape is {encode_block2.shape}')
+        # print(f'x4 shape is {encode_block2.shape}')
         encode_pool2 = self.conv_maxpool2(encode_block2)
-        print(f'x5 shape is {encode_pool2.shape}')
+        # print(f'x5 shape is {encode_pool2.shape}')
         encode_block3 = self.conv_encode3(encode_pool2)
-        print(f'x6 shape is {encode_block3.shape}')
+        # print(f'x6 shape is {encode_block3.shape}')
         encode_pool3 = self.conv_maxpool3(encode_block3)
-        print(f'x7 shape is {encode_pool3.shape}')
+        # print(f'x7 shape is {encode_pool3.shape}')
         encode_block4 = self.conv_encode4(encode_pool3)
-        print(f'x8 shape is VIP 240 {encode_block4.shape}')
+        # print(f'x8 shape is VIP 240 {encode_block4.shape}')
         encode_pool4 = self.conv_maxpool4(encode_block4)
-        print(f'x8a shape is {encode_pool4.shape}')
+        # print(f'x8a shape is {encode_pool4.shape}')
 
         if self.z_concat_flag:
             # print(z_input.shape)

@@ -919,6 +919,14 @@ if __name__ == '__main__':
                              inf_affine,
                              os.path.join(FIG_DIR, "Fake_B_" + os.path.basename(image_name)))
 
+                    # Saving: Reals
+                    save_img(normalise_images(inf_real_A.cpu().detach().squeeze().numpy()),
+                             inf_affine,
+                             os.path.join(FIG_DIR, "Fake_A_" + os.path.basename(label_name)))
+                    save_img(normalise_images(inf_real_B.cpu().detach().squeeze().numpy()),
+                             inf_affine,
+                             os.path.join(FIG_DIR, "Fake_B_" + os.path.basename(image_name)))
+
                     # Saving: Reconstructions
                     save_img(normalise_images(rec_A.cpu().detach().squeeze().numpy()),
                              inf_affine,
