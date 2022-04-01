@@ -297,12 +297,13 @@ if __name__ == '__main__':
                                   ToTensord(keys=['image', 'label', 'coords'])])
 
     ## Relevant job directories
+    base_dir = opt.base_dir
     if opt.phase == "train":
         # Main directories
-        CACHE_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Cache/{opt.job_name}"
-        FIG_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Figures/{opt.job_name}"
-        LOG_DIR = f'/nfs/home/pedro/Outputs-MRA-GAN/Logs/{opt.job_name}'
-        MODELS_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Models/{opt.job_name}"
+        CACHE_DIR = f"{base_dir}/Outputs-MRA-GAN/Cache/{opt.job_name}"
+        FIG_DIR = f"{base_dir}/Outputs-MRA-GAN/Figures/{opt.job_name}"
+        LOG_DIR = f'{base_dir}/Outputs-MRA-GAN/Logs/{opt.job_name}'
+        MODELS_DIR = f"{base_dir}/Outputs-MRA-GAN/Models/{opt.job_name}"
 
         # Create directories
         create_path(CACHE_DIR)
@@ -313,10 +314,10 @@ if __name__ == '__main__':
         opt.job_name = opt.job_name.split('-', 1)[1]
 
         # Directories should already exist
-        CACHE_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Cache/{opt.job_name}"
-        FIG_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Figures/{opt.job_name}"
-        LOG_DIR = f'/nfs/home/pedro/Outputs-MRA-GAN/Logs/{opt.job_name}'
-        MODELS_DIR = f"/nfs/home/pedro/Outputs-MRA-GAN/Models/{opt.job_name}"
+        CACHE_DIR = f"{base_dir}/Outputs-MRA-GAN/Cache/{opt.job_name}"
+        FIG_DIR = f"{base_dir}/Outputs-MRA-GAN/Figures/{opt.job_name}"
+        LOG_DIR = f'{base_dir}/Outputs-MRA-GAN/Logs/{opt.job_name}'
+        MODELS_DIR = f"{base_dir}/Outputs-MRA-GAN/Models/{opt.job_name}"
     else:
         raise NameError("Job phase is test but job name does not start with inf!")
 

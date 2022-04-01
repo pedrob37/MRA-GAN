@@ -14,6 +14,7 @@ class BaseOptions():
         #parser.add_argument('--val_path', type=str, default='./Data_folder/test/', help='Validation images path') # chin commented 20220128
         parser.add_argument('--data_path', type=str, default='/data/Datasets/MRA-GAN/T1-T2', help='Train images path')
         parser.add_argument('--val_path', type=str, default='/nfs/home/pedro/MRA-GAN', help='Validation images path')
+        parser.add_argument('--base_dir', type=str, default='/nfs/home/pedro', help='Base directory path')
         parser.add_argument('--batch_size', type=int, default=1, help='input batch size')
         #parser.add_argument('--patch_size', default=[128, 128, 64], help='Size of the patches extracted from the image') # chin commented 20220128
         #parser.add_argument('--patch_size', default=[128/2, 128/2, 64/2], help='Size of the patches extracted from the image')
