@@ -23,7 +23,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--epoch_count', type=int, default=1, help='the starting epoch count, we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>, ...')
         parser.add_argument('--phase', type=str, default='train', help='train, val, test, etc')
         parser.add_argument('--which_epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
-        parser.add_argument('--niter', type=int, default=500, help='# of iter at starting learning rate')
+        parser.add_argument('--niter', type=int, default=1000, help='# of iter at starting learning rate')
         # parser.add_argument('--patch_size', type=int, default=128, help='Patch size')
         #parser.add_argument('--niter_decay', type=int, default=200, help='# of iter to linearly decay learning rate to zero')
         parser.add_argument('--niter_decay', type=int, default=100, help='# of iter to linearly decay learning rate to zero')
