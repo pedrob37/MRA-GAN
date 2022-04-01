@@ -11,8 +11,8 @@ import pandas as pd
 import numpy as np
 # from torch.utils.tensorboard import SummaryWriter
 import torch.nn as nn
-from models.model_transconvs_norm import nnUNet
-# from models.model_even_transconvs_norm import nnUNet
+# from models.model_transconvs_norm import nnUNet
+from models.model_even_transconvs_norm import nnUNet
 from models.pix2pix_disc_networks import NoisyMultiscaleDiscriminator3D, GANLoss, MultiscaleDiscriminator3D
 # import monai.visualize.img2tensorboard as img2tensorboard
 from models.resnets import resnet10

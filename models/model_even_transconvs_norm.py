@@ -5,16 +5,16 @@ import torch.optim as optim
 
 
 class nnUNet(nn.Module):
-    def contracting_block(self, in_channels, out_channels, kernel_size=4, block_dropout=0.0):
+    def contracting_block(self, in_channels, out_channels, kernel_size=3, block_dropout=0.0):
         from monai.networks.nets import unet
         """
         This function creates one contracting block
         """
         block = torch.nn.Sequential(
-                    torch.nn.Conv3d(kernel_size=kernel_size, in_channels=in_channels, out_channels=out_channels, padding=1, stride=2, dilation=1),
+                    torch.nn.Conv3d(kernel_size=kernel_size, in_channels=in_channels, out_channels=out_channels, padding=1, stride=1, dilation=1),
                     torch.nn.InstanceNorm3d(out_channels),
                     torch.nn.LeakyReLU(),
-                    torch.nn.Conv3d(kernel_size=kernel_size, in_channels=out_channels, out_channels=out_channels, padding=1, stride=2, dilation=1),
+                    torch.nn.Conv3d(kernel_size=kernel_size, in_channels=out_channels, out_channels=out_channels, padding=1, stride=1, dilation=1),
                     torch.nn.InstanceNorm3d(out_channels),
                     torch.nn.LeakyReLU(),
                     torch.nn.Dropout(block_dropout).train(True),
@@ -167,29 +167,29 @@ class nnUNet(nn.Module):
         encode_pool4 = self.conv_maxpool4(encode_block4)
         print(f'x8a shape is {encode_pool4.shape}')
 
-        if self.z_concat_flag:
-            # print(z_input.shape)
-            encode_pool4 = self.tiling_and_concat(z_input, encode_pool4)
+        # if self.z_concat_flag:
+        #     # print(z_input.shape)
+        #     encode_pool4 = self.tiling_and_concat(z_input, encode_pool4)
 
         # Bottleneck
         bottleneck1 = self.bottleneck(encode_pool4)
-        # print(f'x9 shape is BN VIP 240 {bottleneck1.shape}')
+        print(f'x9 shape is BN VIP 240 {bottleneck1.shape}')
         # Decode: Start with concat
-        # print(f'bottleneck shape is {bottleneck1.shape} and the encode block shape is {encode_block4.shape}')
+        print(f'bottleneck shape is {bottleneck1.shape} and the encode block shape is {encode_block4.shape}')
         decode_block4 = self.crop_and_concat(bottleneck1, encode_block4, crop=False)
-        # print(f'x10 shape is 480 {decode_block4.shape}')
+        print(f'x10 shape is 480 {decode_block4.shape}')
         cat_layer3 = self.conv_decode3(decode_block4)
-        # print(f'x11 shape is 120 {cat_layer3.shape}')
+        print(f'x11 shape is 120 {cat_layer3.shape}')
         decode_block3 = self.crop_and_concat(cat_layer3, encode_block3, crop=False)
-        # print(f'x12 shape is 240 {decode_block3.shape}')
+        print(f'x12 shape is 240 {decode_block3.shape}')
         cat_layer2 = self.conv_decode2(decode_block3)
-        # print(f'x13 shape is 60 {cat_layer2.shape}')
+        print(f'x13 shape is 60 {cat_layer2.shape}')
         decode_block2 = self.crop_and_concat(cat_layer2, encode_block2, crop=False)
-        # print(f'x14 shape is 120 {decode_block2.shape}')
+        print(f'x14 shape is 120 {decode_block2.shape}')
         cat_layer1 = self.conv_decode1(decode_block2)
-        # print(f'x15 shape is 30 {cat_layer1.shape}')
+        print(f'x15 shape is 30 {cat_layer1.shape}')
         decode_block1 = self.crop_and_concat(cat_layer1, encode_block1, crop=False)
-        # print(f'x16 shape is 60 {decode_block1.shape}')
+        print(f'x16 shape is 60 {decode_block1.shape}')
 
         features = self.penultimate_layer(decode_block1)
         final_layer = self.final_layer(features)

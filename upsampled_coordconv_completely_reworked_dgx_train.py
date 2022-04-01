@@ -106,16 +106,10 @@ if __name__ == '__main__':
         genloss = multiscale_discriminator_loss(fake_disc_prediction, target_is_real=False)
 
         # Calculate accuracies for every discriminator
-        if opt.perceptual:
-            real_disc_sum_ds1 = real_disc_prediction[0][-1].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[0][0][
-                0, ...].nelement()
-            fake_disc_sum_ds1 = fake_disc_prediction[0][-1].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[0][0][
-                0, ...].nelement()
-        else:
-            real_disc_sum_ds1 = real_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[0][0][
-                0, ...].nelement()
-            fake_disc_sum_ds1 = fake_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[0][0][
-                0, ...].nelement()
+        real_disc_sum_ds1 = real_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[0][0][
+            0, ...].nelement()
+        fake_disc_sum_ds1 = fake_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[0][0][
+            0, ...].nelement()
         # real_disc_sum_ds2 = real_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[1][0][
         #     0, ...].nelement()
         # fake_disc_sum_ds2 = fake_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[1][0][
@@ -355,28 +349,19 @@ if __name__ == '__main__':
         G_A = nnUNet(4, 1, dropout_level=0, final_act=G_A_final_act)
         G_B = nnUNet(4, 1, dropout_level=0)
 
-        # Discriminators
         if opt.perceptual:
             import lpips
-            D_A = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
-                                                 opt.n_layers_D,
-                                                 nn.InstanceNorm3d, False, 1, getIntermFeat=True)
-
-            D_B = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
-                                                 opt.n_layers_D,
-                                                 nn.InstanceNorm3d, False, 1, getIntermFeat=True)
-
             perceptual_net = lpips.LPIPS(pretrained=True, net='squeeze')
             # if torch.cuda.device_count() > 1:
             perceptual_net = torch.nn.DataParallel(perceptual_net)
-        else:
-            D_A = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
-                                                 opt.n_layers_D,
-                                                 nn.InstanceNorm3d, False, 1, False)
+        # Discriminators
+        D_A = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
+                                             opt.n_layers_D,
+                                             nn.InstanceNorm3d, False, 1, False)
 
-            D_B = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
-                                                 opt.n_layers_D,
-                                                 nn.InstanceNorm3d, False, 1, False)
+        D_B = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
+                                             opt.n_layers_D,
+                                             nn.InstanceNorm3d, False, 1, False)
 
         # Associated variables
         G_A = nn.DataParallel(G_A)
