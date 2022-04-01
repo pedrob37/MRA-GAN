@@ -45,6 +45,9 @@ if __name__ == '__main__':
     elif opt.upsampling_method == 'subpixel':
         from models.model_subpixel_upsamps_norm import nnUNet
         print("Using nearest neighbour interpolation + subpixel convolution for upsampling!")
+    elif opt.upsampling_method == "trans":
+        from models.model_transconvs_norm import nnUNet
+        print("Using transposed convolutions for upsampling!")
     else:
         raise SyntaxError("Missing upsampling method parameter!")
 
