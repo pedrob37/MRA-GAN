@@ -11,11 +11,12 @@ import pandas as pd
 import numpy as np
 # from torch.utils.tensorboard import SummaryWriter
 import torch.nn as nn
-# from models.model_transconvs_norm import nnUNet
-from models.model_even_transconvs_norm import nnUNet
-from models.pix2pix_disc_networks import NoisyMultiscaleDiscriminator3D, GANLoss
+from models.model_transconvs_norm import nnUNet
+# from models.model_even_transconvs_norm import nnUNet
+from models.pix2pix_disc_networks import NoisyMultiscaleDiscriminator3D, GANLoss, MultiscaleDiscriminator3D
 # import monai.visualize.img2tensorboard as img2tensorboard
 from models.resnets import resnet10
+import lpips
 from monai.transforms import (Compose,
                               LoadImaged,
                               AddChanneld,
@@ -72,6 +73,8 @@ if __name__ == '__main__':
     # Other cycle/ idt losses
     criterionCycle = torch.nn.L1Loss()
     criterionIdt = torch.nn.L1Loss()
+    if opt.perceptual:
+        criterionPerceptual = torch.nn.L1Loss()
 
     def normalise_images(array):
         import numpy as np
@@ -86,6 +89,16 @@ if __name__ == '__main__':
         real_disc_prediction = discriminator.forward(real_images)
         fake_disc_prediction = discriminator.forward(gen_images.detach())
 
+        # print(real_disc_prediction[0][0].shape)
+        # try:
+        #     print(real_disc_prediction[0][1].shape)
+        #     print(real_disc_prediction[0][2].shape)
+        #     print(real_disc_prediction[0][3].shape)
+        #     print(real_disc_prediction[0][4].shape)
+        #     print(real_disc_prediction[0][5].shape)
+        # except:
+        #     print("")
+
         # Calculate losses across all discriminator levels
         flip_labels = np.random.uniform(0, 1)
         if flip_labels < real_label_flip_chance:
@@ -94,11 +107,18 @@ if __name__ == '__main__':
             realloss = multiscale_discriminator_loss(real_disc_prediction, target_is_real=True)
         genloss = multiscale_discriminator_loss(fake_disc_prediction, target_is_real=False)
 
-        # Calculate accuracies for every discriminator
-        real_disc_sum_ds1 = real_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[0][0][
-            0, ...].nelement()
-        fake_disc_sum_ds1 = fake_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[0][0][
-            0, ...].nelement()
+        if opt.perceptual:
+            # Calculate accuracies for every discriminator
+            real_disc_sum_ds1 = real_disc_prediction[0][-1].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[0][0][
+                0, ...].nelement()
+            fake_disc_sum_ds1 = fake_disc_prediction[0][-1].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[0][0][
+                0, ...].nelement()
+        else:
+            # Calculate accuracies for every discriminator
+            real_disc_sum_ds1 = real_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[0][0][
+                0, ...].nelement()
+            fake_disc_sum_ds1 = fake_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[0][0][
+                0, ...].nelement()
         # real_disc_sum_ds2 = real_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[1][0][
         #     0, ...].nelement()
         # fake_disc_sum_ds2 = fake_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[1][0][
@@ -117,6 +137,83 @@ if __name__ == '__main__':
                fake_disc_accuracy_ds1, \
                real_disc_prediction, fake_disc_prediction
 
+    def perceptual_loss(real_images, rec_images, network_choice, num_slices):
+        """
+        Perceptual loss between original image and reconstructed image
+        """
+        # real_disc_prediction = discriminator.forward(real_images)
+        # fake_disc_prediction = discriminator.forward(rec_images)
+        #
+        # layer_losses = 0
+        # for j in range(len(real_disc_prediction[0])):
+        #     print(j, real_disc_prediction[0][j].numel())
+        #     layer_losses += criterionPerceptual(real_disc_prediction[0][j],
+        #                                         fake_disc_prediction[0][j])  # / real_disc_prediction[0][j].numel()
+
+        # x_hat = model(real_images)
+        # Sagittal
+        x_2d = rec_images.float().permute(0, 2, 1, 3, 4).contiguous().view(-1,
+                                                                           rec_images.shape[1],
+                                                                           rec_images.shape[3],
+                                                                           rec_images.shape[4])
+        y_2d = real_images.float().permute(0, 2, 1, 3, 4).contiguous().view(-1,
+                                                                            real_images.shape[1],
+                                                                            real_images.shape[3],
+                                                                            real_images.shape[4])
+        indices = torch.randperm(x_2d.size(0))[:num_slices]
+        selected_x_2d = x_2d[indices]
+        selected_y_2d = y_2d[indices]
+
+        p_loss_sagital = torch.mean(
+            network_choice.forward(
+                selected_x_2d.float(),
+                selected_y_2d.float()
+            )
+        )
+
+        # Axial
+        x_2d = rec_images.float().permute(0, 4, 1, 2, 3).contiguous().view(-1,
+                                                                           rec_images.shape[1],
+                                                                           rec_images.shape[2],
+                                                                           rec_images.shape[3])
+        y_2d = real_images.float().permute(0, 4, 1, 2, 3).contiguous().view(-1,
+                                                                            real_images.shape[1],
+                                                                            real_images.shape[2],
+                                                                            real_images.shape[3])
+        indices = torch.randperm(x_2d.size(0))[:num_slices]
+        selected_x_2d = x_2d[indices]
+        selected_y_2d = y_2d[indices]
+
+        p_loss_axial = torch.mean(
+            network_choice.forward(
+                selected_x_2d.float(),
+                selected_y_2d.float()
+            )
+        )
+
+        # Coronal
+        x_2d = rec_images.float().permute(0, 3, 1, 2, 4).contiguous().view(-1,
+                                                                           rec_images.shape[1],
+                                                                           rec_images.shape[2],
+                                                                           rec_images.shape[4])
+        y_2d = real_images.float().permute(0, 3, 1, 2, 4).contiguous().view(-1,
+                                                                            real_images.shape[1],
+                                                                            real_images.shape[2],
+                                                                            real_images.shape[4])
+        indices = torch.randperm(x_2d.size(0))[:num_slices]
+        selected_x_2d = x_2d[indices]
+        selected_y_2d = y_2d[indices]
+
+        p_loss_coronal = torch.mean(
+            network_choice.forward(
+                selected_x_2d.float(),
+                selected_y_2d.float()
+            )
+        )
+
+        p_loss = p_loss_sagital + p_loss_axial + p_loss_coronal
+
+        return p_loss
 
     def generator_loss(gen_images, discriminator):
         """
@@ -242,7 +339,7 @@ if __name__ == '__main__':
     # Other variables
     val_gap = 2
     running_iter = 0
-    LOAD = True
+    LOAD = False
 
     # Folds
     for fold in range(10):
@@ -269,15 +366,20 @@ if __name__ == '__main__':
         # Discriminators
         D_A = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
                                              opt.n_layers_D,
-                                             nn.InstanceNorm3d, False, 1, False)
+                                             nn.InstanceNorm3d, False, 1, True)
 
-        D_B = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
+        D_B = MultiscaleDiscriminator3D(1, opt.ndf,
                                              opt.n_layers_D,
-                                             nn.InstanceNorm3d, False, 1, False)
+                                             nn.InstanceNorm3d, False, 1, True)
 
         D_z = NoisyMultiscaleDiscriminator3D(8, opt.ndf,
                                              3,
                                              nn.InstanceNorm3d, False, 1, False)
+
+        if opt.perceptual:
+            perceptual_net = lpips.LPIPS(pretrained=True, net='squeeze')
+            # if torch.cuda.device_count() > 1:
+            perceptual_net = torch.nn.DataParallel(perceptual_net)
 
         # Associated variables
         G_A = nn.DataParallel(G_A)
@@ -322,7 +424,7 @@ if __name__ == '__main__':
         num_files = len(file_list)
         print(f'The number of files is {num_files}')
 
-        if LOAD and num_files > 0 and opt.phase != 'inference':
+        if LOAD and num_files > 200 and opt.phase != 'inference':
             # Find latest model
             import glob
             # total_steps = model.load_networks('latest', models_dir=MODELS_DIR, phase=opt.phase)
@@ -336,7 +438,7 @@ if __name__ == '__main__':
             print(f'Loading {latest_model_file}!')
             loaded_epoch = checkpoint['epoch']
             running_iter = checkpoint['running_iter']
-            total_steps = checkpoint['total_steps']
+            # total_steps = checkpoint['total_steps']
 
             # Get model file specific to fold
             # loaded_model_file = f'epoch_{loaded_epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
@@ -370,7 +472,7 @@ if __name__ == '__main__':
 
             # Ensure that no more loading is done for future folds
             LOAD = False
-        elif LOAD and num_files > 0 and opt.phase == 'inference':
+        elif LOAD and num_files > 200 and opt.phase == 'inference':
             # Find latest model
             import glob
             # total_steps = model.load_networks('latest', models_dir=MODELS_DIR, phase=opt.phase)
@@ -404,7 +506,7 @@ if __name__ == '__main__':
                 for k, v in state.items():
                     if torch.is_tensor(v):
                         state[k] = v.cuda()
-        elif num_files == 0:
+        else:
             total_steps = 0
             running_iter = 0
             loaded_epoch = 0
@@ -418,6 +520,9 @@ if __name__ == '__main__':
         # z
         Aux_E.cuda()
         D_z.cuda()
+
+        if opt.perceptual:
+            perceptual_net = perceptual_net.cuda()
 
         # Train / Val split
         val_fold = fold
@@ -449,9 +554,9 @@ if __name__ == '__main__':
 
         if opt.phase == "train":
             # Training + validation loaders
-            train_ds = monai.data.PersistentDataset(data=train_data_dict,
+            train_ds = monai.data.Dataset(data=train_data_dict,
                                                     transform=train_transforms,
-                                                    cache_dir=CACHE_DIR
+                                                    # cache_dir=CACHE_DIR
                                                     )
     
             train_loader = DataLoader(dataset=train_ds,
@@ -460,9 +565,9 @@ if __name__ == '__main__':
                                       num_workers=opt.workers,
                                       )
     
-            val_ds = monai.data.PersistentDataset(data=val_data_dict,
+            val_ds = monai.data.Dataset(data=val_data_dict,
                                                   transform=val_transforms,
-                                                  cache_dir=CACHE_DIR
+                                                  # cache_dir=CACHE_DIR
                                                   )
     
             val_loader = DataLoader(dataset=val_ds,
@@ -587,18 +692,22 @@ if __name__ == '__main__':
                         for _ in range(1):
                             # Update discriminator by looping N times
                             # with torch.cuda.amp.autocast(enabled=True):
+                            # print("D_B")
                             D_B_loss, real_D_B_acc, fake_D_B_acc, _, fake_D_B_out = discriminator_loss(gen_images=fake_B,
                                                                                                        real_images=real_B,
                                                                                                        discriminator=D_B,
                                                                                                        real_label_flip_chance=opt.label_flipping_chance)
+                            # print("\nD_A")
                             D_A_loss, real_D_A_acc, fake_D_A_acc, _, fake_D_A_out = discriminator_loss(gen_images=fake_A,
                                                                                                        real_images=real_A,
                                                                                                        discriminator=D_A,
                                                                                                        real_label_flip_chance=opt.label_flipping_chance)
+                            # print("\nD_z")
                             D_z_loss, real_D_z_acc, fake_D_z_acc, _, fake_D_z_out = discriminator_loss(gen_images=fake_z,
                                                                                                        real_images=real_z,
                                                                                                        discriminator=D_z,
                                                                                                        real_label_flip_chance=opt.label_flipping_chance)
+                            # print("\n")
 
                             # if overall_disc_acc < disc_acc_thr_upper:
                             D_optimizer.zero_grad()
@@ -653,6 +762,7 @@ if __name__ == '__main__':
                         G_B_loss = generator_loss(gen_images=fake_A, discriminator=D_A)
                         G_z_loss = generator_loss(gen_images=fake_z, discriminator=D_z)
 
+
                         # Cycle losses: G_A and G_B and G_z
                         A_cycle = criterionCycle(rec_A, real_A) * opt.lambda_cycle
                         B_cycle = criterionCycle(rec_B, real_B) * opt.lambda_cycle
@@ -664,7 +774,12 @@ if __name__ == '__main__':
 
                         # Total loss
                         # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + idt_A_loss + idt_B_loss + G_z_loss + z_cycle
-                        total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + G_z_loss + z_cycle
+                        if opt.perceptual:
+                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net, opt.patch_size)
+                            # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + G_z_loss + z_cycle + A_perceptual_loss
+                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_perceptual_loss
+                        else:
+                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + G_z_loss + z_cycle
 
                         # Backward
                         total_G_loss.backward()
@@ -672,8 +787,14 @@ if __name__ == '__main__':
                         # G optimization
                         G_optimizer.step()
 
+                        print(total_G_loss.cpu().detach(),
+                              f"Perceptual: {A_perceptual_loss.cpu().detach().tolist():.3f}",
+                              D_A_loss.cpu().detach(),
+                              D_B_loss.cpu().detach(),
+                              D_z_loss.cpu().detach())
+
                     # if total_steps % opt.print_freq == 0:
-                    break
+                    # break
                     if total_steps % opt.save_latest_freq == 0:
                         print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
                         # Saving

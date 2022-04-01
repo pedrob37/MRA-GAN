@@ -107,14 +107,16 @@ if __name__ == '__main__':
         genloss = multiscale_discriminator_loss(fake_disc_prediction, target_is_real=False)
 
         # Calculate accuracies for every discriminator
-        real_disc_sum_ds1 = real_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[0][0][
-            0, ...].nelement()
-        fake_disc_sum_ds1 = fake_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[0][0][
-            0, ...].nelement()
-        # real_disc_sum_ds2 = real_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[1][0][
-        #     0, ...].nelement()
-        # fake_disc_sum_ds2 = fake_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[1][0][
-        #     0, ...].nelement()
+        if opt.perceptual:
+            real_disc_sum_ds1 = real_disc_prediction[0][-1].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[0][0][
+                0, ...].nelement()
+            fake_disc_sum_ds1 = fake_disc_prediction[0][-1].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[0][0][
+                0, ...].nelement()
+        else:
+            real_disc_sum_ds1 = real_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[0][0][
+                0, ...].nelement()
+            fake_disc_sum_ds1 = fake_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[0][0][
+                0, ...].nelement()
 
         real_disc_accuracy_ds1 = ((real_disc_sum_ds1 > 0.5) == real_label).float().sum() / real_images.shape[0]
         fake_disc_accuracy_ds1 = ((fake_disc_sum_ds1 > 0.5) == fake_label).float().sum() / real_images.shape[0]
@@ -129,6 +131,83 @@ if __name__ == '__main__':
                fake_disc_accuracy_ds1, \
                real_disc_prediction, fake_disc_prediction
 
+    def perceptual_loss(real_images, rec_images, network_choice, num_slices):
+        """
+        Perceptual loss between original image and reconstructed image
+        """
+        # real_disc_prediction = discriminator.forward(real_images)
+        # fake_disc_prediction = discriminator.forward(rec_images)
+        #
+        # layer_losses = 0
+        # for j in range(len(real_disc_prediction[0])):
+        #     print(j, real_disc_prediction[0][j].numel())
+        #     layer_losses += criterionPerceptual(real_disc_prediction[0][j],
+        #                                         fake_disc_prediction[0][j])  # / real_disc_prediction[0][j].numel()
+
+        # x_hat = model(real_images)
+        # Sagittal
+        x_2d = rec_images.float().permute(0, 2, 1, 3, 4).contiguous().view(-1,
+                                                                           rec_images.shape[1],
+                                                                           rec_images.shape[3],
+                                                                           rec_images.shape[4])
+        y_2d = real_images.float().permute(0, 2, 1, 3, 4).contiguous().view(-1,
+                                                                            real_images.shape[1],
+                                                                            real_images.shape[3],
+                                                                            real_images.shape[4])
+        indices = torch.randperm(x_2d.size(0))[:num_slices]
+        selected_x_2d = x_2d[indices]
+        selected_y_2d = y_2d[indices]
+
+        p_loss_sagital = torch.mean(
+            network_choice.forward(
+                selected_x_2d.float(),
+                selected_y_2d.float()
+            )
+        )
+
+        # Axial
+        x_2d = rec_images.float().permute(0, 4, 1, 2, 3).contiguous().view(-1,
+                                                                           rec_images.shape[1],
+                                                                           rec_images.shape[2],
+                                                                           rec_images.shape[3])
+        y_2d = real_images.float().permute(0, 4, 1, 2, 3).contiguous().view(-1,
+                                                                            real_images.shape[1],
+                                                                            real_images.shape[2],
+                                                                            real_images.shape[3])
+        indices = torch.randperm(x_2d.size(0))[:num_slices]
+        selected_x_2d = x_2d[indices]
+        selected_y_2d = y_2d[indices]
+
+        p_loss_axial = torch.mean(
+            network_choice.forward(
+                selected_x_2d.float(),
+                selected_y_2d.float()
+            )
+        )
+
+        # Coronal
+        x_2d = rec_images.float().permute(0, 3, 1, 2, 4).contiguous().view(-1,
+                                                                           rec_images.shape[1],
+                                                                           rec_images.shape[2],
+                                                                           rec_images.shape[4])
+        y_2d = real_images.float().permute(0, 3, 1, 2, 4).contiguous().view(-1,
+                                                                            real_images.shape[1],
+                                                                            real_images.shape[2],
+                                                                            real_images.shape[4])
+        indices = torch.randperm(x_2d.size(0))[:num_slices]
+        selected_x_2d = x_2d[indices]
+        selected_y_2d = y_2d[indices]
+
+        p_loss_coronal = torch.mean(
+            network_choice.forward(
+                selected_x_2d.float(),
+                selected_y_2d.float()
+            )
+        )
+
+        p_loss = p_loss_sagital + p_loss_axial + p_loss_coronal
+
+        return p_loss
 
     def generator_loss(gen_images, discriminator):
         """
@@ -281,17 +360,27 @@ if __name__ == '__main__':
                     dropout_rate=0.0)
 
         # Discriminators
-        D_A = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
-                                             opt.n_layers_D,
-                                             nn.InstanceNorm3d, False, 1, False)
+        if opt.perceptual:
+            import lpips
+            D_A = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
+                                                 opt.n_layers_D,
+                                                 nn.InstanceNorm3d, False, 1, getIntermFeat=True)
 
-        D_B = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
-                                             opt.n_layers_D,
-                                             nn.InstanceNorm3d, False, 1, False)
+            D_B = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
+                                                 opt.n_layers_D,
+                                                 nn.InstanceNorm3d, False, 1, getIntermFeat=True)
 
-        D_z = NoisyMultiscaleDiscriminator3D(4, opt.ndf,
-                                             3,
-                                             nn.InstanceNorm3d, False, 1, False)
+            perceptual_net = lpips.LPIPS(pretrained=True, net='squeeze')
+            # if torch.cuda.device_count() > 1:
+            perceptual_net = torch.nn.DataParallel(perceptual_net)
+        else:
+            D_A = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
+                                                 opt.n_layers_D,
+                                                 nn.InstanceNorm3d, False, 1, False)
+
+            D_B = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
+                                                 opt.n_layers_D,
+                                                 nn.InstanceNorm3d, False, 1, False)
 
         # Associated variables
         G_A = nn.DataParallel(G_A)
@@ -436,6 +525,9 @@ if __name__ == '__main__':
         # z
         Aux_E.cuda()
         D_z.cuda()
+
+        if opt.perceptual:
+            perceptual_net = perceptual_net.cuda()
 
         # Train / Val split
         val_fold = fold
@@ -681,14 +773,23 @@ if __name__ == '__main__':
                         # idt_B_loss = criterionIdt(idt_B, real_A)
 
                         # Total loss
-                        # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + idt_A_loss + idt_B_loss + G_z_loss + z_cycle
-                        total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + G_z_loss + z_cycle
+                        if opt.perceptual:
+                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net, opt.patch_size)
+                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + G_z_loss + z_cycle + A_perceptual_loss
+                        else:
+                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + G_z_loss + z_cycle
 
                         # Backward
                         total_G_loss.backward()
 
                         # G optimization
                         G_optimizer.step()
+
+                        # print(total_G_loss.cpu().detach(),
+                        #       A_perceptual_loss.cpu().detach(),
+                        #       G_A_loss.cpu().detach(), G_B_loss.cpu().detach(), A_cycle.cpu().detach(), B_cycle.cpu().detach(),
+                        #       D_A_loss.cpu().detach(),
+                        #       D_B_loss.cpu().detach())
 
                     # if total_steps % opt.print_freq == 0:
                     if total_steps % opt.save_latest_freq == 0:
@@ -738,6 +839,7 @@ if __name__ == '__main__':
                                             "Generator_A": G_A_loss,
                                             "Generator_B": G_B_loss,
                                             "Generator_z": G_z_loss,
+                                            "Perceptual_A": A_perceptual_loss,
                                             "Discriminator_A": D_A_loss,
                                             "Discriminator_B": D_B_loss,
                                             "Discriminator_z": D_z_loss}, running_iter)
@@ -747,6 +849,7 @@ if __name__ == '__main__':
                                             "Generator_A": G_A_loss,
                                             "Generator_B": G_B_loss,
                                             "Generator_z": G_z_loss,
+                                            "Perceptual_A": A_perceptual_loss,
                                             "cycle_A": A_cycle,
                                             "cycle_B": B_cycle,
                                             "cycle_z": z_cycle,
@@ -876,13 +979,16 @@ if __name__ == '__main__':
                             val_B_cycle = criterionCycle(val_rec_B, val_real_B)
                             val_z_cycle = criterionCycle(val_rec_z, val_real_z)
 
+                            if opt.perceptual:
+                                val_A_perceptual_loss = perceptual_loss(val_real_A, val_rec_A, perceptual_net, opt.patch_size)
+
                             # Idt losses
                             # val_idt_A_loss = criterionIdt(val_idt_A, val_real_B)
                             # val_idt_B_loss = criterionIdt(val_idt_B, val_real_A)
 
                             # Total loss
                             # val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_idt_A_loss + val_idt_B_loss + val_G_z_loss + val_z_cycle
-                            val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_G_z_loss + val_z_cycle
+                            val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_G_z_loss + val_z_cycle + val_A_perceptual_loss
 
                         # Graphs
                         writer.add_scalars('Loss/Val_Adversarial',
@@ -892,7 +998,9 @@ if __name__ == '__main__':
                                             "Generator_z": val_G_z_loss,
                                             "Discriminator_A": val_D_A_loss,
                                             "Discriminator_B": val_D_B_loss,
-                                            "Discriminator_z": val_D_z_loss}, running_iter)
+                                            "Discriminator_z": val_D_z_loss,
+                                            "Perceptual_A": val_A_perceptual_loss,
+                                           }, running_iter)
 
                         writer.add_scalars('Loss/Val_Granular_G',
                                            {"total_G_loss": val_total_G_loss,
@@ -902,6 +1010,7 @@ if __name__ == '__main__':
                                             "cycle_A": val_A_cycle,
                                             "cycle_B": val_B_cycle,
                                             "cycle_z": val_z_cycle,
+                                            "Perceptual_A": val_A_perceptual_loss,
                                             # "idt_A": val_idt_A,
                                             # "idt_B": val_idt_B
                                             }, running_iter)

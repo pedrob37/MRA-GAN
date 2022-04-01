@@ -356,7 +356,7 @@ class MultiscaleDiscriminator3D(nn.Module):
             result = [input]
             for i in range(len(model)):
                 result.append(model[i](result[-1]))
-            return result[1:]
+            return result[0:]
         else:
             return [model(input)]
 
@@ -386,7 +386,7 @@ class NoisyMultiscaleDiscriminator3D(nn.Module):
         for i in range(num_D):
             netD = NoisyNLayerDiscriminator3D(input_nc, ndf, n_layers, norm_layer, use_sigmoid, getIntermFeat)
             if getIntermFeat:
-                for j in range(n_layers+2):
+                for j in range(n_layers+3):  # Needs to be 3 to account for additional noise layer!
                     setattr(self, 'scale'+str(i)+'_layer'+str(j), getattr(netD, 'model'+str(j)))
             else:
                 setattr(self, 'layer'+str(i), netD.model)
@@ -398,7 +398,7 @@ class NoisyMultiscaleDiscriminator3D(nn.Module):
             result = [input]
             for i in range(len(model)):
                 result.append(model[i](result[-1]))
-            return result[1:]
+            return result[0:]
         else:
             return [model(input)]
 
@@ -408,7 +408,7 @@ class NoisyMultiscaleDiscriminator3D(nn.Module):
         input_downsampled = input
         for i in range(num_D):
             if self.getIntermFeat:
-                model = [getattr(self, 'scale'+str(num_D-1-i)+'_layer'+str(j)) for j in range(self.n_layers+2)]
+                model = [getattr(self, 'scale'+str(num_D-1-i)+'_layer'+str(j)) for j in range(self.n_layers+3)]  # Needs to be 3 to account for additional noise layer!
             else:
                 model = getattr(self, 'layer'+str(num_D-1-i))
             result.append(self.singleD_forward(model, input_downsampled))

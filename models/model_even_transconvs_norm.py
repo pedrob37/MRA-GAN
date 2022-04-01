@@ -58,11 +58,11 @@ class nnUNet(nn.Module):
         This returns final block
         """
         block = torch.nn.Sequential(
-                torch.nn.Conv3d(kernel_size=kernel_size, in_channels=in_channels, out_channels=mid_channel, padding=1, stride=2),
+                torch.nn.Conv3d(kernel_size=kernel_size, in_channels=in_channels, out_channels=mid_channel, padding=1, stride=2, dilation=1),
                 torch.nn.InstanceNorm3d(mid_channel),
                 torch.nn.LeakyReLU(),
                 # torch.nn.BatchNorm3d(mid_channel),
-                torch.nn.Conv3d(kernel_size=kernel_size, in_channels=mid_channel, out_channels=mid_channel, padding=1, stride=2),
+                torch.nn.Conv3d(kernel_size=kernel_size, in_channels=mid_channel, out_channels=mid_channel, padding=1, stride=2, dilation=1),
                 torch.nn.InstanceNorm3d(mid_channel),
                 torch.nn.LeakyReLU(),
                 torch.nn.Dropout(block_dropout).train(True),
