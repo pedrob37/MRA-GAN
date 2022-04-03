@@ -371,6 +371,10 @@ if __name__ == '__main__':
                                              opt.n_layers_D,
                                              nn.InstanceNorm3d, False, 1, False)
 
+        D_z = NoisyMultiscaleDiscriminator3D(8, opt.ndf,
+                                             3,
+                                             nn.InstanceNorm3d, False, 1, False)
+
         # Associated variables
         G_A = nn.DataParallel(G_A)
         G_B = nn.DataParallel(G_B)
