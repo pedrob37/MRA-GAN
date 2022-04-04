@@ -39,6 +39,9 @@ if __name__ == '__main__':
     if opt.upsampling_method == 'nearest':
         from models.model_nn_upsamps_norm import nnUNet
         print("Using nearest neighbour interpolation for upsampling!")
+    if opt.upsampling_method == 'exp-nearest':
+        from models.extended_model_nn_upsamps_norm import nnUNet
+        print("Using Expanded nearest neighbour interpolation for upsampling!")
     elif opt.upsampling_method == 'trilinear':
         from models.model_upsamps_norm import nnUNet
         print("Using trilinear interpolation for upsampling!")
@@ -48,6 +51,9 @@ if __name__ == '__main__':
     elif opt.upsampling_method == "trans":
         from models.model_transconvs_norm import nnUNet
         print("Using transposed convolutions for upsampling!")
+    elif opt.upsampling_method == "exp-trans":
+        from models.extended_model_transconvs_norm import nnUNet
+        print("Using Expanded transposed convolutions for upsampling!")
     else:
         raise SyntaxError("Missing upsampling method parameter!")
 
