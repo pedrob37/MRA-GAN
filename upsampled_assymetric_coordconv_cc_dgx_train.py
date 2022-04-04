@@ -39,7 +39,7 @@ if __name__ == '__main__':
     if opt.upsampling_method == 'nearest':
         from models.model_nn_upsamps_norm import nnUNet
         print("Using nearest neighbour interpolation for upsampling!")
-    if opt.upsampling_method == 'exp-nearest':
+    elif opt.upsampling_method == 'exp-nearest':
         from models.extended_model_nn_upsamps_norm import nnUNet
         print("Using Expanded nearest neighbour interpolation for upsampling!")
     elif opt.upsampling_method == 'trilinear':
