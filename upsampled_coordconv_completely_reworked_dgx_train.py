@@ -36,6 +36,7 @@ if __name__ == '__main__':
     opt = TrainOptions().parse()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_number
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # chin added 2022.01.28
 
     # Model choice: Trilinear, nearest neighbour, or nearest neighbour + subpixel convolution
     if opt.upsampling_method == 'nearest':
@@ -421,7 +422,7 @@ if __name__ == '__main__':
         #     sorted_model_files = sorted(model_files, key=os.path.getmtime)
         #     # Allows inference to be run on nth latest file!
         #     latest_model_file = sorted_model_files[-1]
-        #     checkpoint = torch.load(latest_model_file, map_location=torch.device('cuda:0'))
+        #     checkpoint = torch.load(latest_model_file, map_location=torch.device('device'))
         #     print(f'Loading {latest_model_file}!')
         #     loaded_epoch = checkpoint['epoch']
         #     running_iter = checkpoint['running_iter']
@@ -441,7 +442,7 @@ if __name__ == '__main__':
             sorted_model_files = sorted(model_files, key=os.path.getmtime)
             # Allows inference to be run on nth latest file!
             latest_model_file = sorted_model_files[-1]
-            checkpoint = torch.load(latest_model_file, map_location=torch.device('cuda:0'))
+            checkpoint = torch.load(latest_model_file, map_location=torch.device('device'))
             print(f'Loading {latest_model_file}!')
             loaded_epoch = checkpoint['epoch']
             running_iter = checkpoint['running_iter']
@@ -449,7 +450,7 @@ if __name__ == '__main__':
 
             # Get model file specific to fold
             # loaded_model_file = f'epoch_{loaded_epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
-            # checkpoint = torch.load(os.path.join(MODELS_DIR, loaded_model_file), map_location=torch.device('cuda:0'))
+            # checkpoint = torch.load(os.path.join(MODELS_DIR, loaded_model_file), map_location=torch.device('device'))
 
             # Main model variables
             G_A.load_state_dict(checkpoint['G_A_state_dict'])
@@ -485,7 +486,7 @@ if __name__ == '__main__':
             sorted_model_files = sorted(model_files, key=os.path.getmtime)
             # Allows inference to be run on nth latest file!
             latest_model_file = sorted_model_files[-1]
-            checkpoint = torch.load(latest_model_file, map_location=torch.device('cuda:0'))
+            checkpoint = torch.load(latest_model_file, map_location=torch.device('device'))
             print(f'Loading {latest_model_file}!')
             loaded_epoch = checkpoint['epoch']
             running_iter = checkpoint['running_iter']
@@ -494,7 +495,7 @@ if __name__ == '__main__':
             # best_model_file = f'epoch_{loaded_epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
             print(f'Loading checkpoint for model: {os.path.basename(latest_model_file)}')
             # # checkpoint = torch.load(os.path.join(SAVE_PATH, best_model_file), map_location=model.device)
-            # checkpoint = torch.load(os.path.join(MODELS_DIR, best_model_file), map_location=torch.device('cuda:0'))
+            # checkpoint = torch.load(os.path.join(MODELS_DIR, best_model_file), map_location=torch.device('device'))
             # Main model variables
             G_A.load_state_dict(checkpoint['G_A_state_dict'])
             G_B.load_state_dict(checkpoint['G_B_state_dict'])
@@ -587,8 +588,8 @@ if __name__ == '__main__':
         visualizer = Visualizer(opt)
 
         # Z distribution
-        # z_sampler = torch.distributions.Normal(torch.tensor(0.0).to(device=torch.device("cuda:0")),
-        #                                        torch.tensor(1.0).to(device=torch.device("cuda:0")))
+        # z_sampler = torch.distributions.Normal(torch.tensor(0.0).to(device=torch.device("device")),
+        #                                        torch.tensor(1.0).to(device=torch.device("device")))
 
         if opt.phase == "train":
             # Epochs

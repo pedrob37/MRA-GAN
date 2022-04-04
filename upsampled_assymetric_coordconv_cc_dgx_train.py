@@ -34,6 +34,7 @@ if __name__ == '__main__':
     # -----  Loading the init options -----
     opt = TrainOptions().parse()
     os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_number
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # chin added 2022.01.28
 
     # Model choice: Trilinear, nearest neighbour, or nearest neighbour + subpixel convolution
     if opt.upsampling_method == 'nearest':
@@ -434,7 +435,7 @@ if __name__ == '__main__':
             sorted_model_files = sorted(model_files, key=os.path.getmtime)
             # Allows inference to be run on nth latest file!
             latest_model_file = sorted_model_files[-1]
-            checkpoint = torch.load(latest_model_file, map_location=torch.device('cuda:0'))
+            checkpoint = torch.load(latest_model_file, map_location=torch.device(device))
             print(f'Loading {latest_model_file}!')
             loaded_epoch = checkpoint['epoch']
             running_iter = checkpoint['running_iter']
@@ -486,7 +487,7 @@ if __name__ == '__main__':
             sorted_model_files = sorted(model_files, key=os.path.getmtime)
             # Allows inference to be run on nth latest file!
             latest_model_file = sorted_model_files[-1]
-            checkpoint = torch.load(latest_model_file, map_location=torch.device('cuda:0'))
+            checkpoint = torch.load(latest_model_file, map_location=torch.device(device))
             print(f'Loading {latest_model_file}!')
             loaded_epoch = checkpoint['epoch']
             running_iter = checkpoint['running_iter']
@@ -620,8 +621,8 @@ if __name__ == '__main__':
         visualizer = Visualizer(opt)
 
         # Z distribution
-        z_sampler = torch.distributions.Normal(torch.tensor(0.0).to(device=torch.device("cuda:0")),
-                                               torch.tensor(1.0).to(device=torch.device("cuda:0")))
+        z_sampler = torch.distributions.Normal(torch.tensor(0.0).to(device=torch.device(device)),
+                                               torch.tensor(1.0).to(device=torch.device(device)))
 
         if opt.phase == "train":
             # Epochs
