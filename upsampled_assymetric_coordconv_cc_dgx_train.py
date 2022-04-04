@@ -30,10 +30,10 @@ from monai.transforms import (Compose,
 
 if __name__ == '__main__':
     torch.cuda.empty_cache()
-    os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
     # -----  Loading the init options -----
     opt = TrainOptions().parse()
+    os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_number
 
     # Model choice: Trilinear, nearest neighbour, or nearest neighbour + subpixel convolution
     if opt.upsampling_method == 'nearest':
