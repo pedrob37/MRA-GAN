@@ -31,7 +31,6 @@ from monai.transforms import (Compose,
 if __name__ == '__main__':
     torch.cuda.empty_cache()
 
-
     # -----  Loading the init options -----
     opt = TrainOptions().parse()
 
@@ -54,6 +53,9 @@ if __name__ == '__main__':
     elif opt.upsampling_method == "trans":
         from models.model_transconvs_norm import nnUNet
         print("Using transposed convolutions for upsampling!")
+    elif opt.upsampling_method == "even-trans":
+        from models.model_even_transconvs_norm import nnUNet
+        print("Using even transposed convolutions for upsampling!")
     elif opt.upsampling_method == "exp-trans":
         from models.extended_model_transconvs_norm import nnUNet
         print("Using Expanded transposed convolutions for upsampling!")

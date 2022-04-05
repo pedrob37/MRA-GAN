@@ -11,7 +11,8 @@ import pandas as pd
 import numpy as np
 # from torch.utils.tensorboard import SummaryWriter
 import torch.nn as nn
-from models.model_transconvs_norm import nnUNet
+# from models.testing_model_transconvs_norm import nnUNet
+from models.model_even_transconvs_norm import nnUNet
 from models.pix2pix_disc_networks import NoisyMultiscaleDiscriminator3D, GANLoss
 # import monai.visualize.img2tensorboard as img2tensorboard
 from monai.transforms import (Compose,
@@ -394,6 +395,9 @@ if __name__ == '__main__':
                     real_A = train_sample[0]['image'].cuda()
                     real_B = train_sample[0]['label'].cuda()
 
+                    print(real_A.shape, "Real A!")
+                    print(real_B.shape, "Real B!")
+
                     # Names (Not needed for now)
                     image_name = os.path.basename(train_sample[0]["image_meta_dict"]["filename_or_obj"][0])
                     label_name = os.path.basename(train_sample[0]["label_meta_dict"]["filename_or_obj"][0])
@@ -401,6 +405,9 @@ if __name__ == '__main__':
                     # Pass inputs to model and optimise
                     fake_B = G_A(real_A)
                     fake_A = G_B(real_B)
+                    
+                    print(fake_A.shape, "Fake A!")
+                    print(fake_B.shape, "Fake B!")
 
                     # Reconstructions
                     rec_A = G_B(fake_B)
