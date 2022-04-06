@@ -22,7 +22,6 @@ from monai.transforms import (Compose,
                               RandBiasFieldd,
                               ToTensord,
                               RandSpatialCropSamplesd,
-                              NormalizeIntensityd,
                               RandGaussianSmoothd,
                               RandGaussianNoiseD,
                               SpatialPadd,
@@ -244,7 +243,6 @@ if __name__ == '__main__':
                                                             sigma_z=(0.25, 0.3)),
                                         RandBiasFieldd(keys=["image"], degree=3, coeff_range=(0.1, 0.25),
                                                        prob=0.25),  # Odd behaviour...
-                                        NormalizeIntensityd(keys=['image'], channel_wise=True),
                                         RandGaussianNoiseD(keys=["image"], std=0.2, prob=0.5),
                                         RandSpatialCropSamplesd(keys=["image", "label", "coords"],
                                                                 roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
@@ -263,7 +261,6 @@ if __name__ == '__main__':
                                                     mode=("bilinear", "nearest", "nearest"),
                                                     as_tensor_output=False, prob=1.0,
                                                     padding_mode=('zeros', 'zeros', 'border')),
-                                        NormalizeIntensityd(keys=['image'], channel_wise=True),
                                         RandSpatialCropSamplesd(keys=["image", "label", "coords"],
                                                                 roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                                 random_center=True,
@@ -274,7 +271,6 @@ if __name__ == '__main__':
             train_transforms = Compose([LoadImaged(keys=['image', 'label']),
                                         AddChanneld(keys=['image', 'label']),
                                         CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
-                                        NormalizeIntensityd(keys=['image'], channel_wise=True),
                                         RandSpatialCropSamplesd(keys=["image", "label", "coords"],
                                                                 roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                                 random_center=True,
@@ -285,7 +281,6 @@ if __name__ == '__main__':
         val_transforms = Compose([LoadImaged(keys=['image', 'label']),
                                   AddChanneld(keys=['image', 'label']),
                                   CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
-                                  NormalizeIntensityd(keys=['image'], channel_wise=True),
                                   RandSpatialCropSamplesd(keys=["image", "label", "coords"],
                                                           roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                           random_center=True,
@@ -306,7 +301,6 @@ if __name__ == '__main__':
                                   #                         num_samples=1),
                                   # SpatialPadd(keys=["image", "label"],
                                   #             spatial_size=opt.patch_size),
-                                  NormalizeIntensityd(keys=['image'], channel_wise=True),
                                   ToTensord(keys=['image', 'label', 'coords'])])
 
     ## Relevant job directories

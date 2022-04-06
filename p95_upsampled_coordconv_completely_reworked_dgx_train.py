@@ -5,7 +5,7 @@ from options.train_options import TrainOptions
 import time
 from models import create_model
 from utils.visualizer import Visualizer
-from utils.utils import create_path, save_img, CoordConvd, VAE
+from utils.utils import create_path, save_img, CoordConvd
 import monai
 import pandas as pd
 import numpy as np
@@ -22,7 +22,6 @@ from monai.transforms import (Compose,
                               RandBiasFieldd,
                               ToTensord,
                               RandSpatialCropSamplesd,
-                              NormalizeIntensityd,
                               RandGaussianSmoothd,
                               RandGaussianNoiseD,
                               SpatialPadd,
@@ -33,6 +32,7 @@ if __name__ == '__main__':
 
     # -----  Loading the init options -----
     opt = TrainOptions().parse()
+
     os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_number
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # chin added 2022.01.28
 
@@ -60,7 +60,6 @@ if __name__ == '__main__':
         print("Using Expanded transposed convolutions for upsampling!")
     else:
         raise SyntaxError("Missing upsampling method parameter!")
-
 
     ### MONAI
     # Data directory
@@ -124,6 +123,10 @@ if __name__ == '__main__':
             0, ...].nelement()
         fake_disc_sum_ds1 = fake_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[0][0][
             0, ...].nelement()
+        # real_disc_sum_ds2 = real_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[1][0][
+        #     0, ...].nelement()
+        # fake_disc_sum_ds2 = fake_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[1][0][
+        #     0, ...].nelement()
 
         real_disc_accuracy_ds1 = ((real_disc_sum_ds1 > 0.5) == real_label).float().sum() / real_images.shape[0]
         fake_disc_accuracy_ds1 = ((fake_disc_sum_ds1 > 0.5) == fake_label).float().sum() / real_images.shape[0]
@@ -244,7 +247,6 @@ if __name__ == '__main__':
                                                             sigma_z=(0.25, 0.3)),
                                         RandBiasFieldd(keys=["image"], degree=3, coeff_range=(0.1, 0.25),
                                                        prob=0.25),  # Odd behaviour...
-                                        NormalizeIntensityd(keys=['image'], channel_wise=True),
                                         RandGaussianNoiseD(keys=["image"], std=0.2, prob=0.5),
                                         RandSpatialCropSamplesd(keys=["image", "label", "coords"],
                                                                 roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
@@ -263,7 +265,6 @@ if __name__ == '__main__':
                                                     mode=("bilinear", "nearest", "nearest"),
                                                     as_tensor_output=False, prob=1.0,
                                                     padding_mode=('zeros', 'zeros', 'border')),
-                                        NormalizeIntensityd(keys=['image'], channel_wise=True),
                                         RandSpatialCropSamplesd(keys=["image", "label", "coords"],
                                                                 roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                                 random_center=True,
@@ -274,7 +275,6 @@ if __name__ == '__main__':
             train_transforms = Compose([LoadImaged(keys=['image', 'label']),
                                         AddChanneld(keys=['image', 'label']),
                                         CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
-                                        NormalizeIntensityd(keys=['image'], channel_wise=True),
                                         RandSpatialCropSamplesd(keys=["image", "label", "coords"],
                                                                 roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                                 random_center=True,
@@ -285,7 +285,6 @@ if __name__ == '__main__':
         val_transforms = Compose([LoadImaged(keys=['image', 'label']),
                                   AddChanneld(keys=['image', 'label']),
                                   CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
-                                  NormalizeIntensityd(keys=['image'], channel_wise=True),
                                   RandSpatialCropSamplesd(keys=["image", "label", "coords"],
                                                           roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                           random_center=True,
@@ -295,7 +294,7 @@ if __name__ == '__main__':
                                   #             spatial_size=opt.patch_size),
                                   ToTensord(keys=['image', 'label', 'coords'])])
     elif opt.phase == "test":
-        from utils.utils import custom_sliding_window_inference
+        from monai.inferers import sliding_window_inference
         inf_transforms = Compose([LoadImaged(keys=['image', 'label']),
                                   AddChanneld(keys=['image', 'label']),
                                   CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
@@ -306,7 +305,6 @@ if __name__ == '__main__':
                                   #                         num_samples=1),
                                   # SpatialPadd(keys=["image", "label"],
                                   #             spatial_size=opt.patch_size),
-                                  NormalizeIntensityd(keys=['image'], channel_wise=True),
                                   ToTensord(keys=['image', 'label', 'coords'])])
 
     ## Relevant job directories
@@ -340,7 +338,6 @@ if __name__ == '__main__':
 
     # Other variables
     val_gap = 5
-    running_iter = 0
     LOAD = True
 
     # Folds
@@ -359,13 +356,7 @@ if __name__ == '__main__':
         elif opt.final_act == "sigmoid":
             G_A_final_act = torch.nn.Sigmoid()
         G_A = nnUNet(4, 1, dropout_level=0, final_act=G_A_final_act)
-        G_B = nnUNet(4, 1, dropout_level=0, z_concat_flag=True, z_output=4)
-
-        # Encoder
-        # Aux_E = resnet10(pretrained=False, n_input_channels=1)
-        Aux_E = VAE(z_dim=512,
-                    linear_in_feats=2048,
-                    dropout_rate=0.0)
+        G_B = nnUNet(4, 1, dropout_level=0)
 
         if opt.perceptual:
             import lpips
@@ -381,27 +372,17 @@ if __name__ == '__main__':
                                              opt.n_layers_D,
                                              nn.InstanceNorm3d, False, 1, False)
 
-        D_z = NoisyMultiscaleDiscriminator3D(4, opt.ndf,
-                                             3,
-                                             nn.InstanceNorm3d, False, 1, False)
-
         # Associated variables
         G_A = nn.DataParallel(G_A)
         G_B = nn.DataParallel(G_B)
         D_A = nn.DataParallel(D_A)
         D_B = nn.DataParallel(D_B)
 
-        # Z
-        Aux_E = nn.DataParallel(Aux_E)
-        D_z = nn.DataParallel(D_z)
-
-        from monai.networks.nets import resnet10
-
         # Optimizers + schedulers
         import itertools
-        G_optimizer = torch.optim.Adam(itertools.chain(G_A.parameters(), G_B.parameters(), Aux_E.parameters()),
+        G_optimizer = torch.optim.Adam(itertools.chain(G_A.parameters(), G_B.parameters()),
                                        lr=opt.gen_lr, betas=(0.5, 0.999))
-        D_optimizer = torch.optim.Adam(itertools.chain(D_A.parameters(), D_B.parameters(), D_z.parameters()),
+        D_optimizer = torch.optim.Adam(itertools.chain(D_A.parameters(), D_B.parameters()),
                                        lr=opt.disc_lr, betas=(0.5, 0.999))
         # G_A_optimizer = torch.optim.Adam(G_A.parameters(), lr=0.0001, betas=betas)
         # G_B_optimizer = torch.optim.Adam(G_B.parameters(), lr=0.0001, betas=betas)
@@ -428,6 +409,25 @@ if __name__ == '__main__':
         num_files = len(file_list)
         print(f'The number of files is {num_files}')
 
+        # if num_files > 0 and LOAD:
+        #     import glob
+        #     # total_steps = model.load_networks('latest', models_dir=MODELS_DIR, phase=opt.phase)
+        #     model_files = glob.glob(os.path.join(MODELS_DIR, '*.pth'))
+        #     for some_model_file in model_files:
+        #         print(some_model_file)
+        #     sorted_model_files = sorted(model_files, key=os.path.getmtime)
+        #     # Allows inference to be run on nth latest file!
+        #     latest_model_file = sorted_model_files[-1]
+        #     checkpoint = torch.load(latest_model_file, map_location=torch.device(device))
+        #     print(f'Loading {latest_model_file}!')
+        #     loaded_epoch = checkpoint['epoch']
+        #     running_iter = checkpoint['running_iter']
+        #     total_steps = checkpoint['total_steps']
+        # else:
+        #     total_steps = 0
+        #     running_iter = 0
+        #     loaded_epoch = 0
+
         if LOAD and num_files > 0 and opt.phase != 'inference':
             # Find latest model
             import glob
@@ -442,19 +442,11 @@ if __name__ == '__main__':
             print(f'Loading {latest_model_file}!')
             loaded_epoch = checkpoint['epoch']
             running_iter = checkpoint['running_iter']
-            try:
-                total_steps = checkpoint['total_steps']
-            except KeyError:
-                print("Total steps not found")
-                total_steps = running_iter
+            total_steps = checkpoint['total_steps']
 
             # Get model file specific to fold
             # loaded_model_file = f'epoch_{loaded_epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
-            # checkpoint = torch.load(os.path.join(MODELS_DIR, loaded_model_file), map_location=torch.device('cuda:0'))
-
-            # Aux E and D_z
-            D_z.load_state_dict(checkpoint['D_z_state_dict'])
-            Aux_E.load_state_dict(checkpoint['Aux_E_state_dict'])
+            # checkpoint = torch.load(os.path.join(MODELS_DIR, loaded_model_file), map_location=torch.device(device))
 
             # Main model variables
             G_A.load_state_dict(checkpoint['G_A_state_dict'])
@@ -499,11 +491,7 @@ if __name__ == '__main__':
             # best_model_file = f'epoch_{loaded_epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
             print(f'Loading checkpoint for model: {os.path.basename(latest_model_file)}')
             # # checkpoint = torch.load(os.path.join(SAVE_PATH, best_model_file), map_location=model.device)
-            # checkpoint = torch.load(os.path.join(MODELS_DIR, best_model_file), map_location=torch.device('cuda:0'))
-
-            # Aux E and D_z
-            Aux_E.load_state_dict(checkpoint['Aux_E_state_dict'])
-
+            # checkpoint = torch.load(os.path.join(MODELS_DIR, best_model_file), map_location=torch.device(device))
             # Main model variables
             G_A.load_state_dict(checkpoint['G_A_state_dict'])
             G_B.load_state_dict(checkpoint['G_B_state_dict'])
@@ -524,10 +512,6 @@ if __name__ == '__main__':
         G_B.cuda()
         D_A.cuda()
         D_B.cuda()
-
-        # z
-        Aux_E.cuda()
-        D_z.cuda()
 
         if opt.perceptual:
             perceptual_net = perceptual_net.cuda()
@@ -566,18 +550,18 @@ if __name__ == '__main__':
                                                     transform=train_transforms,
                                                     cache_dir=CACHE_DIR
                                                     )
-    
+
             train_loader = DataLoader(dataset=train_ds,
                                       batch_size=opt.batch_size,
                                       shuffle=True,
                                       num_workers=opt.workers,
                                       )
-    
+
             val_ds = monai.data.PersistentDataset(data=val_data_dict,
                                                   transform=val_transforms,
                                                   cache_dir=CACHE_DIR
                                                   )
-    
+
             val_loader = DataLoader(dataset=val_ds,
                                     batch_size=opt.batch_size,
                                     shuffle=True,
@@ -597,48 +581,20 @@ if __name__ == '__main__':
         # Model creation
         # model = create_model(opt)
         # model.setup(opt)
-
-        # Model loading
-        # file_list = os.listdir(path=MODELS_DIR)
-        # num_files = len(file_list)
-        # print(f'The number of files is {num_files}')
-        #
-        # if num_files > 0 and LOAD:
-        #     import glob
-        #     # total_steps = model.load_networks('latest', models_dir=MODELS_DIR, phase=opt.phase)
-        #     model_files = glob.glob(os.path.join(MODELS_DIR, '*.pth'))
-        #     for some_model_file in model_files:
-        #         print(some_model_file)
-        #     sorted_model_files = sorted(model_files, key=os.path.getmtime)
-        #     # Allows inference to be run on nth latest file!
-        #     latest_model_file = sorted_model_files[-1]
-        #     checkpoint = torch.load(latest_model_file, map_location=torch.device('cuda:0'))
-        #     print(f'Loading {latest_model_file}!')
-        #     loaded_epoch = checkpoint['epoch']
-        #     running_iter = checkpoint['running_iter']
-        #     total_steps = checkpoint['total_steps']
-        # else:
-        #     total_steps = 0
-        #     running_iter = 0
-        #     loaded_epoch = 0
         visualizer = Visualizer(opt)
 
         # Z distribution
-        z_sampler = torch.distributions.Normal(torch.tensor(0.0).to(device=torch.device(device)),
-                                               torch.tensor(1.0).to(device=torch.device(device)))
+        # z_sampler = torch.distributions.Normal(torch.tensor(0.0).to(device=torch.device("cuda:0")),
+        #                                        torch.tensor(1.0).to(device=torch.device("cuda:0")))
 
         if opt.phase == "train":
             # Epochs
-            for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
+            for epoch in range(loaded_epoch, opt.niter + opt.niter_decay + 1):
                 # Model to train mode after potential eval call when running validation
                 G_A.train()
                 G_B.train()
                 D_A.train()
                 D_B.train()
-
-                # z
-                Aux_E.train()
-                D_z.train()
 
                 epoch_start_time = time.time()
                 iter_data_time = time.time()
@@ -666,18 +622,13 @@ if __name__ == '__main__':
 
                     # Pass inputs to model and optimise: Forward loop
                     fake_B = G_A(torch.cat((real_A, train_coords), dim=1))
-                    # Need fake z sample
-                    fake_z = Aux_E(real_A)
-                    # Pair fake B with fake z to generate rec_A
-                    rec_A = G_B(torch.cat((fake_B, train_coords), dim=1), fake_z)
+                    # Pair fake B with fake z to generate rec_A: Add Coords as well
+                    rec_A = G_B(torch.cat((fake_B, train_coords), dim=1))
 
                     # Backward loop: Sample z from normal distribution
-                    real_z = z_sampler.sample(fake_z.shape)
-                    fake_A = G_B(torch.cat((real_B, train_coords), dim=1), real_z)
+                    fake_A = G_B(torch.cat((real_B, train_coords), dim=1))
                     # Reconstructed B
                     rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
-                    # Reconstructed z
-                    rec_z = Aux_E(fake_A)
 
                     # Identity
                     # idt_A = G_A(real_B)
@@ -689,13 +640,10 @@ if __name__ == '__main__':
                         adv_start = time.time()
                         D_A_total_loss = torch.zeros(1,)
                         D_B_total_loss = torch.zeros(1,)
-                        D_z_total_loss = torch.zeros(1,)
                         agg_real_D_A_acc = 0
                         agg_fake_D_A_acc = 0
                         agg_real_D_B_acc = 0
                         agg_fake_D_B_acc = 0
-                        agg_real_D_z_acc = 0
-                        agg_fake_D_z_acc = 0
                         # Always have to do at least one run otherwise how is accuracy calculated?
                         for _ in range(1):
                             # Update discriminator by looping N times
@@ -708,10 +656,6 @@ if __name__ == '__main__':
                                                                                                        real_images=real_A,
                                                                                                        discriminator=D_A,
                                                                                                        real_label_flip_chance=opt.label_flipping_chance)
-                            D_z_loss, real_D_z_acc, fake_D_z_acc, _, fake_D_z_out = discriminator_loss(gen_images=fake_z,
-                                                                                                       real_images=real_z,
-                                                                                                       discriminator=D_z,
-                                                                                                       real_label_flip_chance=opt.label_flipping_chance)
 
                             # if overall_disc_acc < disc_acc_thr_upper:
                             D_optimizer.zero_grad()
@@ -719,7 +663,6 @@ if __name__ == '__main__':
                             # Propagate + Log
                             D_B_loss.backward()
                             D_A_loss.backward()
-                            D_z_loss.backward()
                             D_optimizer.step()
 
                             # D_B_scaler.scale(D_B_loss).backward()
@@ -727,7 +670,6 @@ if __name__ == '__main__':
                             # D_B_scaler.update()
                             D_B_total_loss += D_B_loss.item()
                             D_A_total_loss += D_A_loss.item()
-                            D_z_total_loss += D_z_loss.item()
 
                             # Aggregate accuracy: D_B
                             agg_real_D_B_acc += real_D_B_acc
@@ -736,10 +678,6 @@ if __name__ == '__main__':
                             # Aggregate accuracy: D_A
                             agg_real_D_A_acc += real_D_A_acc
                             agg_fake_D_A_acc += fake_D_A_acc
-
-                            # Aggregate accuracy: D_z
-                            agg_real_D_z_acc += real_D_z_acc
-                            agg_fake_D_z_acc += fake_D_z_acc
 
                         # D_B
                         agg_real_D_B_acc = agg_real_D_B_acc / 1
@@ -751,11 +689,6 @@ if __name__ == '__main__':
                         agg_fake_D_A_acc = agg_fake_D_A_acc / 1
                         overall_D_A_acc = (agg_real_D_A_acc + agg_fake_D_A_acc) / 2
 
-                        # D_z
-                        agg_real_D_z_acc = agg_real_D_z_acc / 1
-                        agg_fake_D_z_acc = agg_fake_D_z_acc / 1
-                        overall_D_z_acc = (agg_real_D_z_acc + agg_fake_D_z_acc) / 2
-
                         # Generator training
                         G_optimizer.zero_grad()
 
@@ -764,12 +697,10 @@ if __name__ == '__main__':
                         # Only update generator if discriminator is doing too well
                         G_A_loss = generator_loss(gen_images=fake_B, discriminator=D_B)
                         G_B_loss = generator_loss(gen_images=fake_A, discriminator=D_A)
-                        G_z_loss = generator_loss(gen_images=fake_z, discriminator=D_z)
 
-                        # Cycle losses: G_A and G_B and G_z
-                        A_cycle = criterionCycle(rec_A, real_A) * opt.lambda_cycle
-                        B_cycle = criterionCycle(rec_B, real_B) * opt.lambda_cycle
-                        z_cycle = criterionCycle(rec_z, real_z) * opt.lambda_cycle
+                        # Cycle losses: G_A and G_B
+                        A_cycle = criterionCycle(rec_A, real_A)
+                        B_cycle = criterionCycle(rec_B, real_B)
 
                         # Idt losses
                         # idt_A_loss = criterionIdt(idt_A, real_B)
@@ -778,9 +709,9 @@ if __name__ == '__main__':
                         # Total loss
                         if opt.perceptual:
                             A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net, opt.patch_size)
-                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + G_z_loss + z_cycle + A_perceptual_loss
+                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_perceptual_loss
                         else:
-                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + G_z_loss + z_cycle
+                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
 
                         # Backward
                         total_G_loss.backward()
@@ -801,27 +732,23 @@ if __name__ == '__main__':
                         # Define ONE file for saving ALL state dicts
                         G_A.cpu()
                         G_B.cpu()
-                        Aux_E.cpu()
                         D_A.cpu()
                         D_B.cpu()
-                        D_z.cpu()
-                        save_filename = f'epoch_{epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
+                        save_filename = f'epoch_{epoch+1}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
                         current_state_dict = {
                             'G_optimizer_state_dict': G_optimizer.state_dict(),
                             'D_optimizer_state_dict': D_optimizer.state_dict(),
                             'G_scheduler_state_dict': G_scheduler.state_dict(),
                             'D_scheduler_state_dict': D_scheduler.state_dict(),
-                            'epoch': epoch,
+                            'epoch': epoch+1,
                             'running_iter': running_iter,
                             'total_steps': total_steps,
                             'batch_size': opt.batch_size,
                             'patch_size': opt.patch_size,
                             'G_A_state_dict': G_A.state_dict(),
                             'G_B_state_dict': G_B.state_dict(),
-                            'Aux_E_state_dict': Aux_E.state_dict(),
                             'D_A_state_dict': D_A.state_dict(),
                             'D_B_state_dict': D_B.state_dict(),
-                            'D_z_state_dict': D_z.state_dict(),
                         }
 
                         # Actually save
@@ -830,34 +757,43 @@ if __name__ == '__main__':
 
                         G_A.cuda()
                         G_B.cuda()
-                        Aux_E.cuda()
                         D_A.cuda()
                         D_B.cuda()
-                        D_z.cuda()
 
                     if total_steps % 250 == 0:
                         # Graphs
-                        writer.add_scalars('Loss/Adversarial',
-                                           {"Total_G_loss": total_G_loss,
-                                            "Generator_A": G_A_loss,
-                                            "Generator_B": G_B_loss,
-                                            "Generator_z": G_z_loss,
-                                            "Perceptual_A": A_perceptual_loss,
-                                            "Discriminator_A": D_A_loss,
-                                            "Discriminator_B": D_B_loss,
-                                            "Discriminator_z": D_z_loss}, running_iter)
+                        if opt.perceptual:
+                            writer.add_scalars('Loss/Adversarial',
+                                               {"Total_G_loss": total_G_loss,
+                                                "Generator_A": G_A_loss,
+                                                "Generator_B": G_B_loss,
+                                                "Discriminator_A": D_A_loss,
+                                                "Discriminator_B": D_B_loss,
+                                                "Perceptual_A": A_perceptual_loss,
+                                                }, running_iter)
+                            writer.add_scalars('Loss/Granular_G',
+                                               {"total_G_loss": total_G_loss,
+                                                "Generator_A": G_A_loss,
+                                                "Generator_B": G_B_loss,
+                                                "cycle_A": A_cycle,
+                                                "cycle_B": B_cycle,
+                                                "Perceptual_A": A_perceptual_loss,
+                                            }, running_iter)
+                        else:
+                            writer.add_scalars('Loss/Adversarial',
+                                               {"Total_G_loss": total_G_loss,
+                                                "Generator_A": G_A_loss,
+                                                "Generator_B": G_B_loss,
+                                                "Discriminator_A": D_A_loss,
+                                                "Discriminator_B": D_B_loss,
+                                                }, running_iter)
 
-                        writer.add_scalars('Loss/Granular_G',
-                                           {"total_G_loss": total_G_loss,
-                                            "Generator_A": G_A_loss,
-                                            "Generator_B": G_B_loss,
-                                            "Generator_z": G_z_loss,
-                                            "Perceptual_A": A_perceptual_loss,
-                                            "cycle_A": A_cycle,
-                                            "cycle_B": B_cycle,
-                                            "cycle_z": z_cycle,
-                                            # "idt_A": idt_A,
-                                            # "idt_B": idt_B
+                            writer.add_scalars('Loss/Granular_G',
+                                               {"total_G_loss": total_G_loss,
+                                                "Generator_A": G_A_loss,
+                                                "Generator_B": G_B_loss,
+                                                "cycle_A": A_cycle,
+                                                "cycle_B": B_cycle,
                                             }, running_iter)
 
                         # Images
@@ -872,12 +808,6 @@ if __name__ == '__main__':
                                                          image_tensor=normalise_images(
                                                              real_A[0, 0, ...][None, ...].cpu().detach().numpy()),
                                                          tag=f'Visuals/Real_A_fold_{fold}',
-                                                         max_out=opt.patch_size // 4,
-                                                         scale_factor=255, global_step=running_iter)
-                        img2tensorboard.add_animated_gif(writer=writer,
-                                                         image_tensor=normalise_images(
-                                                             real_z[0, 0, ...][None, ...].cpu().detach().numpy()),
-                                                         tag=f'Visuals/Real_z_fold_{fold}',
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
 
@@ -906,25 +836,17 @@ if __name__ == '__main__':
                                                          tag=f'Visuals/Rec_A_fold_{fold}',
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
-                        img2tensorboard.add_animated_gif(writer=writer,
-                                                         image_tensor=normalise_images(
-                                                             fake_z[0, 0, ...][None, ...].cpu().detach().numpy()),
-                                                         tag=f'Visuals/Fake_z_fold_{fold}',
-                                                         max_out=opt.patch_size // 4,
-                                                         scale_factor=255, global_step=running_iter)
                     iter_data_time = time.time()
                     running_iter += 1
 
                     # Clean-up
-                    del real_A, real_B, train_sample, real_z, rec_A, rec_B, rec_z, train_coords
+                    del real_A, real_B, train_sample, rec_A, rec_B
 
                 if epoch % val_gap == 0:
                     G_A.eval()
                     G_B.eval()
                     D_A.eval()
                     D_B.eval()
-                    D_z.eval()
-                    Aux_E.eval()
                     with torch.no_grad():
                         for val_sample in val_loader:
                             # Validation variables
@@ -940,18 +862,13 @@ if __name__ == '__main__':
                             # Forward
                             # Pass inputs to model and optimise: Forward loop
                             val_fake_B = G_A(torch.cat((val_real_A, val_coords), dim=1))
-                            # Need fake z sample
-                            val_fake_z = Aux_E(val_real_A)
                             # Pair fake B with fake z to generate rec_A
-                            val_rec_A = G_B(torch.cat((val_fake_B, val_coords), dim=1), val_fake_z)
+                            val_rec_A = G_B(torch.cat((val_fake_B, val_coords), dim=1))
 
-                            # Backward loop: Sample z from normal distribution
-                            val_real_z = z_sampler.sample(val_fake_z.shape)
-                            val_fake_A = G_B(torch.cat((val_real_B, val_coords), dim=1), val_real_z)
+                            # Backward loop
+                            val_fake_A = G_B(torch.cat((val_real_B, val_coords), dim=1))
                             # Reconstructed B
                             val_rec_B = G_A(torch.cat((val_fake_A, val_coords), dim=1))
-                            # Reconstructed z
-                            val_rec_z = Aux_E(val_fake_A)
 
                             # Identity
                             # val_idt_A = G_A(val_real_B)
@@ -967,76 +884,86 @@ if __name__ == '__main__':
                                                                                          real_images=val_real_A,
                                                                                          discriminator=D_A,
                                                                                          real_label_flip_chance=0.0)
-                            val_D_z_loss, _, _, _, val_fake_D_z_out = discriminator_loss(gen_images=val_fake_z,
-                                                                                         real_images=val_real_z,
-                                                                                         discriminator=D_z,
-                                                                                         real_label_flip_chance=0.0)
 
                             # Generator
                             val_G_A_loss = generator_loss(gen_images=val_fake_B, discriminator=D_B)
                             val_G_B_loss = generator_loss(gen_images=val_fake_A, discriminator=D_A)
-                            val_G_z_loss = generator_loss(gen_images=val_fake_z, discriminator=D_z)
 
                             # Cycle losses: G_A and G_B
                             val_A_cycle = criterionCycle(val_rec_A, val_real_A)
                             val_B_cycle = criterionCycle(val_rec_B, val_real_B)
-                            val_z_cycle = criterionCycle(val_rec_z, val_real_z)
 
                             if opt.perceptual:
                                 val_A_perceptual_loss = perceptual_loss(val_real_A, val_rec_A, perceptual_net, opt.patch_size)
-                                val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_G_z_loss + val_z_cycle + val_A_perceptual_loss
+                                val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_A_perceptual_loss
                             else:
-                                val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_G_z_loss + val_z_cycle
+                                val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle
+                            # Idt losses
+                            # val_idt_A_loss = criterionIdt(val_idt_A, val_real_B)
+                            # val_idt_B_loss = criterionIdt(val_idt_B, val_real_A)
+
+                            # Total loss
+                            # val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_idt_A_loss + val_idt_B_loss
 
                         # Graphs
-                        writer.add_scalars('Loss/Val_Adversarial',
-                                           {
-                                            "Generator_A": val_G_A_loss,
-                                            "Generator_B": val_G_B_loss,
-                                            "Generator_z": val_G_z_loss,
-                                            "Discriminator_A": val_D_A_loss,
-                                            "Discriminator_B": val_D_B_loss,
-                                            "Discriminator_z": val_D_z_loss,
-                                            "Perceptual_A": val_A_perceptual_loss,
-                                           }, running_iter)
+                        if opt.perceptual:
+                            writer.add_scalars('Loss/Val_Adversarial',
+                                               {
+                                                "Generator_A": val_G_A_loss,
+                                                "Generator_B": val_G_B_loss,
+                                                "Discriminator_A": val_D_A_loss,
+                                                "Discriminator_B": val_D_B_loss,
+                                                "Perceptual_A": val_A_perceptual_loss,
+                                               }, running_iter)
 
-                        writer.add_scalars('Loss/Val_Granular_G',
-                                           {"total_G_loss": val_total_G_loss,
-                                            "Generator_A": val_G_A_loss,
-                                            "Generator_B": val_G_B_loss,
-                                            "Generator_z": val_G_z_loss,
-                                            "cycle_A": val_A_cycle,
-                                            "cycle_B": val_B_cycle,
-                                            "cycle_z": val_z_cycle,
-                                            "Perceptual_A": val_A_perceptual_loss,
-                                            # "idt_A": val_idt_A,
-                                            # "idt_B": val_idt_B
-                                            }, running_iter)
+                            writer.add_scalars('Loss/Val_Granular_G',
+                                               {"total_G_loss": val_total_G_loss,
+                                                "Generator_A": val_G_A_loss,
+                                                "Generator_B": val_G_B_loss,
+                                                "cycle_A": val_A_cycle,
+                                                "cycle_B": val_B_cycle,
+                                                "Perceptual_A": val_A_perceptual_loss,
+                                                }, running_iter)
+                        else:
+                            writer.add_scalars('Loss/Val_Adversarial',
+                                               {
+                                                "Generator_A": val_G_A_loss,
+                                                "Generator_B": val_G_B_loss,
+                                                "Discriminator_A": val_D_A_loss,
+                                                "Discriminator_B": val_D_B_loss,
+                                               }, running_iter)
 
-                        # Save models
+                            writer.add_scalars('Loss/Val_Granular_G',
+                                               {"total_G_loss": val_total_G_loss,
+                                                "Generator_A": val_G_A_loss,
+                                                "Generator_B": val_G_B_loss,
+                                                "cycle_A": val_A_cycle,
+                                                "cycle_B": val_B_cycle,
+                                                }, running_iter)
+
+                        # Saving
+                        print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
+                        # Saving
+                        # Define ONE file for saving ALL state dicts
                         G_A.cpu()
                         G_B.cpu()
                         D_A.cpu()
                         D_B.cpu()
-                        D_z.cpu()
-                        Aux_E.cpu()
-                        save_filename = f'epoch_{epoch}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
+                        save_filename = f'epoch_{epoch+1}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
                         current_state_dict = {
                             'G_optimizer_state_dict': G_optimizer.state_dict(),
                             'D_optimizer_state_dict': D_optimizer.state_dict(),
                             'G_scheduler_state_dict': G_scheduler.state_dict(),
                             'D_scheduler_state_dict': D_scheduler.state_dict(),
-                            'epoch': epoch,
+                            'epoch': epoch+1,
                             'running_iter': running_iter,
+                            'total_steps': total_steps,
                             'batch_size': opt.batch_size,
                             'patch_size': opt.patch_size,
-                            'total_steps': total_steps,
                             'G_A_state_dict': G_A.state_dict(),
                             'G_B_state_dict': G_B.state_dict(),
                             'D_A_state_dict': D_A.state_dict(),
                             'D_B_state_dict': D_B.state_dict(),
-                            'D_z_state_dict': D_z.state_dict(),
-                            'Aux_E_state_dict': Aux_E.state_dict(),
                         }
 
                         # Actually save
@@ -1047,8 +974,6 @@ if __name__ == '__main__':
                         G_B.cuda()
                         D_A.cuda()
                         D_B.cuda()
-                        D_z.cuda()
-                        Aux_E.cuda()
 
                         # Images
                         # Reals
@@ -1060,11 +985,6 @@ if __name__ == '__main__':
                         img2tensorboard.add_animated_gif(writer=writer,
                                                          image_tensor=normalise_images(val_real_A[0, 0, ...][None, ...].cpu().detach().numpy()),
                                                          tag=f'Validation/Real_A_fold_{fold}',
-                                                         max_out=opt.patch_size // 4,
-                                                         scale_factor=255, global_step=running_iter)
-                        img2tensorboard.add_animated_gif(writer=writer,
-                                                         image_tensor=normalise_images(val_real_z[0, 0, ...][None, ...].cpu().detach().numpy()),
-                                                         tag=f'Validation/Real_z_fold_{fold}',
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
 
@@ -1089,20 +1009,16 @@ if __name__ == '__main__':
                                                          tag=f'Validation/Rec_A_fold_{fold}',
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
-                        img2tensorboard.add_animated_gif(writer=writer,
-                                                         image_tensor=normalise_images(val_fake_z[0, 0, ...][None, ...].cpu().detach().numpy()),
-                                                         tag=f'Validation/Fake_z_fold_{fold}',
-                                                         max_out=opt.patch_size // 4,
-                                                         scale_factor=255, global_step=running_iter)
 
                         # Clean-up
-                        del val_real_A, val_real_B, val_sample, val_real_z, val_rec_A, val_rec_B, val_rec_z, val_coords
+                        del val_real_A, val_real_B, val_sample, val_rec_A, val_rec_B
 
                 print(f'End of epoch {epoch} / {opt.niter} \t Time Taken: {time.time() - epoch_start_time:.3f} sec')
                 G_scheduler.step(epoch)
                 D_scheduler.step(epoch)
         elif opt.phase == "test":
             # Overlap and sliding window inference
+            from monai.inferers import sliding_window_inference
             overlap = 0.3
 
 
@@ -1114,7 +1030,6 @@ if __name__ == '__main__':
             # Carry out inference
             G_A.eval()
             G_B.eval()
-            Aux_E.eval()
             with torch.no_grad():
                 for inf_sample in inf_loader:
                     inf_real_A = inf_sample['image'].cuda()
@@ -1127,31 +1042,24 @@ if __name__ == '__main__':
                     label_affine = inf_sample['label_meta_dict']['affine'][0, ...]
 
                     # Pass inputs to generators
-                    # inf_fake_z = Aux_E(inf_real_A)
-                    inf_patch_size = 160
-                    inf_real_z = z_sampler.sample((1, 4,
-                                                   inf_patch_size // 16,
-                                                   inf_patch_size // 16,
-                                                   inf_patch_size // 16))
-
-                    fake_B = custom_sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), inf_patch_size, 1, G_A,
+                    fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), 160, 1, G_A,
                                                       overlap=overlap,
                                                       mode='gaussian')
-                    fake_A = custom_sliding_window_inference((torch.cat((inf_real_B, inf_coords), dim=1), inf_real_z), inf_patch_size, 1,
-                                                      G_B,
+                    fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_coords), dim=1), 160, 1, G_B,
                                                       overlap=overlap,
                                                       mode='gaussian')
 
-                    rec_A = custom_sliding_window_inference((torch.cat((fake_B, inf_coords), dim=1), inf_real_z), inf_patch_size, 1,
+                    rec_A = sliding_window_inference(torch.cat((fake_B, inf_coords), dim=1), 160, 1,
                                                      G_B,
                                                      overlap=overlap,
                                                      mode='gaussian')
-                    rec_B = custom_sliding_window_inference(torch.cat((fake_A, inf_coords), dim=1), inf_patch_size, 1,
+                    rec_B = sliding_window_inference(torch.cat((fake_A, inf_coords), dim=1), 160, 1,
                                                      G_A,
                                                      overlap=overlap,
                                                      mode='gaussian')
 
                     del inf_real_A, inf_real_B, inf_sample, inf_coords
+
 
                     # Saving: Fakes
                     save_img(normalise_images(fake_A.cpu().detach().squeeze().numpy()),

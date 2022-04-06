@@ -768,24 +768,38 @@ if __name__ == '__main__':
 
                     if total_steps % 250 == 0:
                         # Graphs
-                        writer.add_scalars('Loss/Adversarial',
-                                           {"Total_G_loss": total_G_loss,
-                                            "Generator_A": G_A_loss,
-                                            "Generator_B": G_B_loss,
-                                            "Discriminator_A": D_A_loss,
-                                            "Discriminator_B": D_B_loss,
-                                            "Perceptual_A": A_perceptual_loss,
+                        if opt.perceptual:
+                            writer.add_scalars('Loss/Adversarial',
+                                               {"Total_G_loss": total_G_loss,
+                                                "Generator_A": G_A_loss,
+                                                "Generator_B": G_B_loss,
+                                                "Discriminator_A": D_A_loss,
+                                                "Discriminator_B": D_B_loss,
+                                                "Perceptual_A": A_perceptual_loss,
+                                                }, running_iter)
+                            writer.add_scalars('Loss/Granular_G',
+                                               {"total_G_loss": total_G_loss,
+                                                "Generator_A": G_A_loss,
+                                                "Generator_B": G_B_loss,
+                                                "cycle_A": A_cycle,
+                                                "cycle_B": B_cycle,
+                                                "Perceptual_A": A_perceptual_loss,
                                             }, running_iter)
+                        else:
+                            writer.add_scalars('Loss/Adversarial',
+                                               {"Total_G_loss": total_G_loss,
+                                                "Generator_A": G_A_loss,
+                                                "Generator_B": G_B_loss,
+                                                "Discriminator_A": D_A_loss,
+                                                "Discriminator_B": D_B_loss,
+                                                }, running_iter)
 
-                        writer.add_scalars('Loss/Granular_G',
-                                           {"total_G_loss": total_G_loss,
-                                            "Generator_A": G_A_loss,
-                                            "Generator_B": G_B_loss,
-                                            "cycle_A": A_cycle,
-                                            "cycle_B": B_cycle,
-                                            "Perceptual_A": A_perceptual_loss,
-                                            # "idt_A": idt_A,
-                                            # "idt_B": idt_B
+                            writer.add_scalars('Loss/Granular_G',
+                                               {"total_G_loss": total_G_loss,
+                                                "Generator_A": G_A_loss,
+                                                "Generator_B": G_B_loss,
+                                                "cycle_A": A_cycle,
+                                                "cycle_B": B_cycle,
                                             }, running_iter)
 
                         # Images
@@ -887,35 +901,51 @@ if __name__ == '__main__':
 
                             if opt.perceptual:
                                 val_A_perceptual_loss = perceptual_loss(val_real_A, val_rec_A, perceptual_net, opt.patch_size)
-
+                                val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_A_perceptual_loss
+                            else:
+                                val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle
                             # Idt losses
                             # val_idt_A_loss = criterionIdt(val_idt_A, val_real_B)
                             # val_idt_B_loss = criterionIdt(val_idt_B, val_real_A)
 
                             # Total loss
                             # val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_idt_A_loss + val_idt_B_loss
-                            val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_A_perceptual_loss
 
                         # Graphs
-                        writer.add_scalars('Loss/Val_Adversarial',
-                                           {
-                                            "Generator_A": val_G_A_loss,
-                                            "Generator_B": val_G_B_loss,
-                                            "Discriminator_A": val_D_A_loss,
-                                            "Discriminator_B": val_D_B_loss,
-                                            "Perceptual_A": val_A_perceptual_loss,
-                                           }, running_iter)
+                        if opt.perceptual:
+                            writer.add_scalars('Loss/Val_Adversarial',
+                                               {
+                                                "Generator_A": val_G_A_loss,
+                                                "Generator_B": val_G_B_loss,
+                                                "Discriminator_A": val_D_A_loss,
+                                                "Discriminator_B": val_D_B_loss,
+                                                "Perceptual_A": val_A_perceptual_loss,
+                                               }, running_iter)
 
-                        writer.add_scalars('Loss/Val_Granular_G',
-                                           {"total_G_loss": val_total_G_loss,
-                                            "Generator_A": val_G_A_loss,
-                                            "Generator_B": val_G_B_loss,
-                                            "cycle_A": val_A_cycle,
-                                            "cycle_B": val_B_cycle,
-                                            "Perceptual_A": val_A_perceptual_loss,
-                                            # "idt_A": val_idt_A,
-                                            # "idt_B": val_idt_B
-                                            }, running_iter)
+                            writer.add_scalars('Loss/Val_Granular_G',
+                                               {"total_G_loss": val_total_G_loss,
+                                                "Generator_A": val_G_A_loss,
+                                                "Generator_B": val_G_B_loss,
+                                                "cycle_A": val_A_cycle,
+                                                "cycle_B": val_B_cycle,
+                                                "Perceptual_A": val_A_perceptual_loss,
+                                                }, running_iter)
+                        else:
+                            writer.add_scalars('Loss/Val_Adversarial',
+                                               {
+                                                "Generator_A": val_G_A_loss,
+                                                "Generator_B": val_G_B_loss,
+                                                "Discriminator_A": val_D_A_loss,
+                                                "Discriminator_B": val_D_B_loss,
+                                               }, running_iter)
+
+                            writer.add_scalars('Loss/Val_Granular_G',
+                                               {"total_G_loss": val_total_G_loss,
+                                                "Generator_A": val_G_A_loss,
+                                                "Generator_B": val_G_B_loss,
+                                                "cycle_A": val_A_cycle,
+                                                "cycle_B": val_B_cycle,
+                                                }, running_iter)
 
                         # Saving
                         print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
