@@ -52,9 +52,13 @@ def new_state_dict(file_name):
     return new_state_dict
 
 
-def create_path(some_path):
-    if not os.path.exists(some_path):
-        os.makedirs(some_path)
+def create_path(some_dir):
+    try:
+        if not os.path.exists(some_dir):
+            os.makedirs(some_dir)
+    except FileExistsError:
+        print(f"{some_dir} already exists!")
+        pass
 
 
 def save_img(image, affine, filename):
