@@ -74,7 +74,7 @@ if __name__ == '__main__':
     num_folds = df.fold.nunique()
 
     # Inference fold assignment
-    inf_fold = 5
+    inf_fold = 9
     inf_df = df[df.fold == inf_fold]
     inf_df.reset_index(drop=True, inplace=True)
 
@@ -341,7 +341,7 @@ if __name__ == '__main__':
     LOAD = True
 
     # Folds
-    for fold in range(6):
+    for fold in range(10):
         # Define models and associated variables
         print('\nFOLD', fold)
         # Pre-loading sequence: Two out channels correspond to number of classes
