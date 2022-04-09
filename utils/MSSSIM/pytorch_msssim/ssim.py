@@ -103,10 +103,10 @@ class SSIM(torch.nn.Module):
         self.gaussian_kernel_sigma = gaussian_kernel_sigma
 
         if gaussian_kernel:
-            self.gaussian_kernel = gaussian_kernel
+            self.gaussian_kernel = gaussian_kernel.cuda()
             self.gaussian_kernel_size = self.gaussian_kernel.shape[-1]
         else:
-            self.gaussian_kernel = self._fspecial_gauss_1d()
+            self.gaussian_kernel = self._fspecial_gauss_1d().cuda()
 
         if self.gaussian_kernel_size % 2 != 1:
             raise ValueError(
@@ -360,6 +360,7 @@ class SSIM(torch.nn.Module):
                     stride=1,
                     groups=input.shape[1],
                     dilation=1,
+
                 )
             else:
                 warnings.warn(
