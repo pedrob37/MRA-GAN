@@ -83,7 +83,8 @@ if __name__ == '__main__':
     criterionMSSSIM = SSIM(data_range=1.0,
                            gaussian_kernel_size=gaussian_kernel_size,
                            gradient_based=True,
-                           star_based=False)
+                           star_based=False,
+                           gradient_masks_weights=None)
 
     def normalise_images(array):
         import numpy as np
@@ -366,11 +367,11 @@ if __name__ == '__main__':
         elif opt.final_act == "sigmoid":
             G_A_final_act = torch.nn.Sigmoid()
         G_A = nnUNet(4, 1, dropout_level=0, final_act=G_A_final_act)
-        G_B = nnUNet(4, 1, dropout_level=0, z_concat_flag=True, z_output=8)
+        G_B = nnUNet(4, 1, dropout_level=0, z_concat_flag=False, z_output=0)
 
         # Encoder
         # Aux_E = resnet10(pretrained=False, n_input_channels=1)
-        Aux_E = VAE(z_dim=512, dropout_rate=0.0, linear_in_feats=1024)
+        Aux_E = VAE(z_dim=512, dropout_rate=0.0, linear_in_feats=1024)  # 1024
 
         # Discriminators
         D_A = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
@@ -660,25 +661,43 @@ if __name__ == '__main__':
                     real_A = train_sample[0]['image'].cuda()
                     real_B = train_sample[0]['label'].cuda()
                     train_coords = train_sample[0]['coords'].cuda()
+                    #
+                    # # Names (Not needed for now)
+                    # image_name = os.path.basename(train_sample[0]["image_meta_dict"]["filename_or_obj"][0])
+                    # label_name = os.path.basename(train_sample[0]["label_meta_dict"]["filename_or_obj"][0])
+                    #
+                    # # Pass inputs to model and optimise: Forward loop
+                    # fake_B = G_A(torch.cat((real_A, train_coords), dim=1))
+                    # # Need fake z sample
+                    # fake_z = Aux_E(real_A)
+                    # # Pair fake B with fake z to generate rec_A
+                    # rec_A = G_B(torch.cat((fake_B, train_coords), dim=1), fake_z)
+                    #
+                    # # Backward loop: Sample z from normal distribution
+                    # real_z = z_sampler.sample(fake_z.shape)
+                    # fake_A = G_B(torch.cat((real_B, train_coords), dim=1), real_z)
+                    # # Reconstructed B
+                    # rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
+                    # # Reconstructed z
+                    # rec_z = Aux_E(fake_A)
+
+                    # print(real_A.shape, "Real A!")
+                    # print(real_B.shape, "Real B!")
 
                     # Names (Not needed for now)
                     image_name = os.path.basename(train_sample[0]["image_meta_dict"]["filename_or_obj"][0])
                     label_name = os.path.basename(train_sample[0]["label_meta_dict"]["filename_or_obj"][0])
 
-                    # Pass inputs to model and optimise: Forward loop
+                    # Pass inputs to model and optimise
                     fake_B = G_A(torch.cat((real_A, train_coords), dim=1))
-                    # Need fake z sample
-                    fake_z = Aux_E(real_A)
-                    # Pair fake B with fake z to generate rec_A
-                    rec_A = G_B(torch.cat((fake_B, train_coords), dim=1), fake_z)
+                    fake_A = G_B(torch.cat((real_B, train_coords), dim=1))
 
-                    # Backward loop: Sample z from normal distribution
-                    real_z = z_sampler.sample(fake_z.shape)
-                    fake_A = G_B(torch.cat((real_B, train_coords), dim=1), real_z)
-                    # Reconstructed B
+                    # print(fake_A.shape, "Fake A!")
+                    # print(fake_B.shape, "Fake B!")
+
+                    # Reconstructions
+                    rec_A = G_B(torch.cat((fake_B, train_coords), dim=1))
                     rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
-                    # Reconstructed z
-                    rec_z = Aux_E(fake_A)
 
                     # Identity
                     # idt_A = G_A(real_B)
@@ -712,10 +731,10 @@ if __name__ == '__main__':
                                                                                                        discriminator=D_A,
                                                                                                        real_label_flip_chance=opt.label_flipping_chance)
                             # print("\nD_z")
-                            D_z_loss, real_D_z_acc, fake_D_z_acc, _, fake_D_z_out = discriminator_loss(gen_images=fake_z,
-                                                                                                       real_images=real_z,
-                                                                                                       discriminator=D_z,
-                                                                                                       real_label_flip_chance=opt.label_flipping_chance)
+                            # D_z_loss, real_D_z_acc, fake_D_z_acc, _, fake_D_z_out = discriminator_loss(gen_images=fake_z,
+                            #                                                                            real_images=real_z,
+                            #                                                                            discriminator=D_z,
+                            #                                                                            real_label_flip_chance=opt.label_flipping_chance)
                             # print("\n")
 
                             # if overall_disc_acc < disc_acc_thr_upper:
@@ -724,7 +743,7 @@ if __name__ == '__main__':
                             # Propagate + Log
                             D_B_loss.backward()
                             D_A_loss.backward()
-                            D_z_loss.backward()
+                            # D_z_loss.backward()
                             D_optimizer.step()
 
                             # D_B_scaler.scale(D_B_loss).backward()
@@ -732,7 +751,7 @@ if __name__ == '__main__':
                             # D_B_scaler.update()
                             D_B_total_loss += D_B_loss.item()
                             D_A_total_loss += D_A_loss.item()
-                            D_z_total_loss += D_z_loss.item()
+                            # D_z_total_loss += D_z_loss.item()
 
                             # Aggregate accuracy: D_B
                             agg_real_D_B_acc += real_D_B_acc
@@ -743,8 +762,8 @@ if __name__ == '__main__':
                             agg_fake_D_A_acc += fake_D_A_acc
 
                             # Aggregate accuracy: D_z
-                            agg_real_D_z_acc += real_D_z_acc
-                            agg_fake_D_z_acc += fake_D_z_acc
+                            # agg_real_D_z_acc += real_D_z_acc
+                            # agg_fake_D_z_acc += fake_D_z_acc
 
                         # D_B
                         agg_real_D_B_acc = agg_real_D_B_acc / 1
@@ -757,9 +776,9 @@ if __name__ == '__main__':
                         overall_D_A_acc = (agg_real_D_A_acc + agg_fake_D_A_acc) / 2
 
                         # D_z
-                        agg_real_D_z_acc = agg_real_D_z_acc / 1
-                        agg_fake_D_z_acc = agg_fake_D_z_acc / 1
-                        overall_D_z_acc = (agg_real_D_z_acc + agg_fake_D_z_acc) / 2
+                        # agg_real_D_z_acc = agg_real_D_z_acc / 1
+                        # agg_fake_D_z_acc = agg_fake_D_z_acc / 1
+                        # overall_D_z_acc = (agg_real_D_z_acc + agg_fake_D_z_acc) / 2
 
                         # Generator training
                         G_optimizer.zero_grad()
@@ -769,13 +788,13 @@ if __name__ == '__main__':
                         # Only update generator if discriminator is doing too well
                         G_A_loss = generator_loss(gen_images=fake_B, discriminator=D_B)
                         G_B_loss = generator_loss(gen_images=fake_A, discriminator=D_A)
-                        G_z_loss = generator_loss(gen_images=fake_z, discriminator=D_z)
+                        # G_z_loss = generator_loss(gen_images=fake_z, discriminator=D_z)
 
 
                         # Cycle losses: G_A and G_B and G_z
                         A_cycle = criterionCycle(rec_A, real_A) * opt.lambda_cycle
                         B_cycle = criterionCycle(rec_B, real_B) * opt.lambda_cycle
-                        z_cycle = criterionCycle(rec_z, real_z) * opt.lambda_cycle
+                        # z_cycle = criterionCycle(rec_z, real_z) * opt.lambda_cycle
 
                         # Idt losses
                         # idt_A_loss = criterionIdt(idt_A, real_B)
@@ -801,11 +820,20 @@ if __name__ == '__main__':
                         # G optimization
                         G_optimizer.step()
 
-                        print(total_G_loss.cpu().detach(),
-                              f"Perceptual: {A_perceptual_loss.cpu().detach().tolist():.3f}",
-                              D_A_loss.cpu().detach(),
-                              D_B_loss.cpu().detach(),
-                              D_z_loss.cpu().detach())
+                        # print(total_G_loss.cpu().detach(),
+                        #       f"Perceptual: {A_perceptual_loss.cpu().detach().tolist():.3f}",
+                        #       D_A_loss.cpu().detach(),
+                        #       D_B_loss.cpu().detach())
+                        #       # D_z_loss.cpu().detach())
+
+                        if opt.perceptual and opt.msssim:
+                            print(f"Percep: {A_perceptual_loss.cpu().detach().tolist():.3f}, "
+                                  f"MS-SSIM: {A_msssim_loss.cpu().detach().tolist()[0][0]:.3f}, "
+                                  f"G_A: {G_A_loss.cpu().detach().tolist():.3f}, "
+                                  f"G_B: {G_B_loss.cpu().detach().tolist():.3f}, "
+                                  f"cycle_A: {A_cycle.cpu().detach().tolist():.3f}, "
+                                  f"cycle_B: {B_cycle.cpu().detach().tolist():.3f}"
+                                  )
 
                     # if total_steps % opt.print_freq == 0:
                     # break

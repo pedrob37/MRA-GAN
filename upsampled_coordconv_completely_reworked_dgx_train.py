@@ -769,12 +769,12 @@ if __name__ == '__main__':
                         G_optimizer.step()
 
                         if opt.perceptual and opt.msssim:
-                            print(f"Percep: {A_perceptual_loss.cpu().detach().numpy():.3f}, "
-                                  f"MS-SSIM: {A_msssim_loss.cpu().detach().numpy():.3f}, "
-                                  f"G_A: {G_A_loss.cpu().detach().numpy():.3f}, "
-                                  f"G_B: {G_B_loss.cpu().detach().numpy():.3f}, "
-                                  f"cycle_A: {A_cycle.cpu().detach().numpy():.3f}, "
-                                  f"cycle_B: {B_cycle.cpu().detach().numpy():.3f}, "
+                            print(f"Percep: {A_perceptual_loss.cpu().detach().tolist():.3f}, "
+                                  f"MS-SSIM: {A_msssim_loss.cpu().detach().tolist()[0][0]:.3f}, "
+                                  f"G_A: {G_A_loss.cpu().detach().tolist():.3f}, "
+                                  f"G_B: {G_B_loss.cpu().detach().tolist():.3f}, "
+                                  f"cycle_A: {A_cycle.cpu().detach().tolist():.3f}, "
+                                  f"cycle_B: {B_cycle.cpu().detach().tolist():.3f}"
                                   )
 
                     # if total_steps % opt.print_freq == 0:

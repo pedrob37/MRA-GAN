@@ -107,7 +107,8 @@ class SSIM(torch.nn.Module):
             self.gaussian_kernel_size = self.gaussian_kernel.shape[-1]
         else:
             self.gaussian_kernel = self._fspecial_gauss_1d()
-        self.gaussian_kernel.cuda()
+        self.gaussian_kernel = self.gaussian_kernel.cuda()
+        # self.gaussian_kernel.cuda()
 
         if self.gaussian_kernel_size % 2 != 1:
             raise ValueError(
@@ -239,7 +240,7 @@ class SSIM(torch.nn.Module):
             directional_gradient = torch.abs(
                 self.conv(
                     input=input,
-                    weight=gk,
+                    weight=gk.cuda(),
                     stride=1,
                     padding=0,
                     groups=input.shape[1],
@@ -628,7 +629,7 @@ class SSIM(torch.nn.Module):
 
         mscs_and_ssim = torch.stack(mscs + [ssim], dim=0)
         msssim = torch.prod(
-            mscs_and_ssim ** self.multi_scale_weights.view(-1, 1, 1), dim=0
+            mscs_and_ssim ** self.multi_scale_weights.view(-1, 1, 1).cuda(), dim=0
         )
 
         return msssim
