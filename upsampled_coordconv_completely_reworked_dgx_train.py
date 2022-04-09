@@ -278,14 +278,14 @@ if __name__ == '__main__':
                                                 translate_range=(20, 20, 20),
                                                 mode=("bilinear", "nearest", "nearest"),
                                                 as_tensor_output=False, prob=1.0,
-                                                padding_mode=('zeros', 'zeros', 'border')),
-                                    NormalizeIntensityd(keys=['image'], channel_wise=True),
-                                    RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                                            roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
-                                                            random_center=True,
-                                                            random_size=False,
-                                                            num_samples=1),
-                                    ToTensord(keys=['image', 'label', 'coords'])]
+                                                padding_mode=('zeros', 'zeros', 'border'))]
+                                    # NormalizeIntensityd(keys=['image'], channel_wise=True),
+                                    # RandSpatialCropSamplesd(keys=["image", "label", "coords"],
+                                    #                         roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                    #                         random_center=True,
+                                    #                         random_size=False,
+                                    #                         num_samples=1),
+                                    # ToTensord(keys=['image', 'label', 'coords'])]
             if opt.znorm:
                 train_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
         elif opt.augmentation_level == "none":
