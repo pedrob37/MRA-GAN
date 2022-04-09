@@ -5,7 +5,7 @@ from options.train_options import TrainOptions
 import time
 from models import create_model
 from utils.visualizer import Visualizer
-from utils.utils import create_path, save_img, CoordConvd
+from utils.utils import create_path, save_img, CoordConvd, kernel_size_calculator
 import monai
 import pandas as pd
 import numpy as np
@@ -26,6 +26,8 @@ from monai.transforms import (Compose,
                               SpatialPadd,
                               )
 from monai.utils import set_determinism
+from utils.MSSSIM.pytorch_msssim.ssim import SSIM
+
 
 if __name__ == '__main__':
     torch.cuda.empty_cache()
@@ -129,6 +131,14 @@ if __name__ == '__main__':
     # Other cycle/ idt losses
     criterionCycle = torch.nn.L1Loss().to(dtype=torch.bfloat16)
     criterionIdt = torch.nn.L1Loss().to(dtype=torch.bfloat16)
+
+    # MS-SSIM
+    if opt.msssim:
+        gaussian_kernel_size = kernel_size_calculator(opt.patch_size)
+        criterionMSSSIM = SSIM(data_range=1.0,
+                               gaussian_kernel_size=gaussian_kernel_size,
+                               gradient_based=True,
+                               star_based=False)
 
     def normalise_images(array):
         import numpy as np
@@ -710,9 +720,16 @@ if __name__ == '__main__':
                         # idt_B_loss = criterionIdt(idt_B, real_A)
 
                         # Total loss
-                        if opt.perceptual:
-                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net, opt.patch_size)
+                        if opt.perceptual and not opt.msssim:
+                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net, opt.patch_size) * opt.perceptual_weighting
                             total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_perceptual_loss
+                        elif not opt.perceptual and opt.msssim:
+                            A_msssim_loss = criterionMSSSIM(real_A, rec_A)
+                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss
+                        elif opt.perceptual and opt.msssim:
+                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net, opt.patch_size) * opt.perceptual_weighting
+                            A_msssim_loss = criterionMSSSIM(real_A, rec_A)
+                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss + A_perceptual_loss
                         else:
                             total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
 
@@ -760,39 +777,29 @@ if __name__ == '__main__':
                         # Logging: Only on a single GPU
                         if total_steps % 250 == 0:
                             # Graphs
+                            loss_adv_dict = {"Total_G_loss": total_G_loss,
+                                             "Generator_A": G_A_loss,
+                                             "Generator_B": G_B_loss,
+                                             "Discriminator_A": D_A_loss,
+                                             "Discriminator_B": D_B_loss,
+                                            }
+                            loss_granular_dict = {"total_G_loss": total_G_loss,
+                                                  "Generator_A": G_A_loss,
+                                                  "Generator_B": G_B_loss,
+                                                  "cycle_A": A_cycle,
+                                                  "cycle_B": B_cycle,
+                                                 }
                             if opt.perceptual:
-                                writer.add_scalars('Loss/Adversarial',
-                                                   {"Total_G_loss": total_G_loss,
-                                                    "Generator_A": G_A_loss,
-                                                    "Generator_B": G_B_loss,
-                                                    "Discriminator_A": D_A_loss,
-                                                    "Discriminator_B": D_B_loss,
-                                                    "Perceptual_A": A_perceptual_loss,
-                                                    }, running_iter)
-                                writer.add_scalars('Loss/Granular_G',
-                                                   {"total_G_loss": total_G_loss,
-                                                    "Generator_A": G_A_loss,
-                                                    "Generator_B": G_B_loss,
-                                                    "cycle_A": A_cycle,
-                                                    "cycle_B": B_cycle,
-                                                    "Perceptual_A": A_perceptual_loss,
-                                                }, running_iter)
-                            else:
-                                writer.add_scalars('Loss/Adversarial',
-                                                   {"Total_G_loss": total_G_loss,
-                                                    "Generator_A": G_A_loss,
-                                                    "Generator_B": G_B_loss,
-                                                    "Discriminator_A": D_A_loss,
-                                                    "Discriminator_B": D_B_loss,
-                                                    }, running_iter)
+                                loss_adv_dict["Perceptual_A"] = A_perceptual_loss
+                                loss_granular_dict["Perceptual_A"] = A_perceptual_loss
+                            if opt.msssim:
+                                loss_adv_dict["MSSSIM_A"] = A_msssim_loss
+                                loss_granular_dict["MSSSIM_A"] = A_msssim_loss
 
+                                writer.add_scalars('Loss/Adversarial',
+                                                   loss_adv_dict, running_iter)
                                 writer.add_scalars('Loss/Granular_G',
-                                                   {"total_G_loss": total_G_loss,
-                                                    "Generator_A": G_A_loss,
-                                                    "Generator_B": G_B_loss,
-                                                    "cycle_A": A_cycle,
-                                                    "cycle_B": B_cycle,
-                                                }, running_iter)
+                                                   loss_granular_dict, running_iter)
 
                             # Images
                             # Reals
@@ -891,54 +898,44 @@ if __name__ == '__main__':
                             val_A_cycle = criterionCycle(val_rec_A, val_real_A)
                             val_B_cycle = criterionCycle(val_rec_B, val_real_B)
 
-                            if opt.perceptual:
-                                val_A_perceptual_loss = perceptual_loss(val_real_A, val_rec_A, perceptual_net, opt.patch_size)
+                            if opt.perceptual and not opt.msssim:
+                                val_A_perceptual_loss = perceptual_loss(val_real_A, val_rec_A, perceptual_net, opt.patch_size) * opt.perceptual_weighting
                                 val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_A_perceptual_loss
+                            elif not opt.perceptual and opt.msssim:
+                                val_A_msssim_loss = criterionMSSSIM(val_real_A, val_rec_A)
+                                val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_A_msssim_loss
+                            elif opt.perceptual and opt.msssim:
+                                val_A_perceptual_loss = perceptual_loss(val_real_A, val_rec_A, perceptual_net, opt.patch_size) * opt.perceptual_weighting
+                                val_A_msssim_loss = criterionMSSSIM(val_real_A, val_rec_A)
+                                val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_A_msssim_loss + val_A_perceptual_loss
                             else:
                                 val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle
-                            # Idt losses
-                            # val_idt_A_loss = criterionIdt(val_idt_A, val_real_B)
-                            # val_idt_B_loss = criterionIdt(val_idt_B, val_real_A)
-
-                            # Total loss
-                            # val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_idt_A_loss + val_idt_B_loss
 
                         # Graphs
                         if rank == chosen_rank:
+                            val_loss_adv_dict = {
+                                "Generator_A": val_G_A_loss,
+                                "Generator_B": val_G_B_loss,
+                                "Discriminator_A": val_D_A_loss,
+                                "Discriminator_B": val_D_B_loss,
+                            }
+                            val_loss_granular_dict = {
+                                                    "Generator_A": val_G_A_loss,
+                                                    "Generator_B": val_G_B_loss,
+                                                    "Discriminator_A": val_D_A_loss,
+                                                    "Discriminator_B": val_D_B_loss,
+                                                   }
                             if opt.perceptual:
-                                writer.add_scalars('Loss/Val_Adversarial',
-                                                   {
-                                                    "Generator_A": val_G_A_loss,
-                                                    "Generator_B": val_G_B_loss,
-                                                    "Discriminator_A": val_D_A_loss,
-                                                    "Discriminator_B": val_D_B_loss,
-                                                    "Perceptual_A": val_A_perceptual_loss,
-                                                   }, running_iter)
+                                val_loss_adv_dict["Perceptual_A"] = val_A_perceptual_loss
+                                val_loss_granular_dict["Perceptual_A"] = val_A_perceptual_loss
+                            if opt.msssim:
+                                val_loss_adv_dict["MSSSIM_A"] = val_A_msssim_loss
+                                val_loss_granular_dict["MSSSIM_A"] = val_A_msssim_loss
+                            writer.add_scalars('Loss/Val_Adversarial',
+                                               val_loss_adv_dict, running_iter)
 
-                                writer.add_scalars('Loss/Val_Granular_G',
-                                                   {"total_G_loss": val_total_G_loss,
-                                                    "Generator_A": val_G_A_loss,
-                                                    "Generator_B": val_G_B_loss,
-                                                    "cycle_A": val_A_cycle,
-                                                    "cycle_B": val_B_cycle,
-                                                    "Perceptual_A": val_A_perceptual_loss,
-                                                    }, running_iter)
-                            else:
-                                writer.add_scalars('Loss/Val_Adversarial',
-                                                   {
-                                                    "Generator_A": val_G_A_loss,
-                                                    "Generator_B": val_G_B_loss,
-                                                    "Discriminator_A": val_D_A_loss,
-                                                    "Discriminator_B": val_D_B_loss,
-                                                   }, running_iter)
-
-                                writer.add_scalars('Loss/Val_Granular_G',
-                                                   {"total_G_loss": val_total_G_loss,
-                                                    "Generator_A": val_G_A_loss,
-                                                    "Generator_B": val_G_B_loss,
-                                                    "cycle_A": val_A_cycle,
-                                                    "cycle_B": val_B_cycle,
-                                                    }, running_iter)
+                            writer.add_scalars('Loss/Val_Granular_G',
+                                               val_loss_granular_dict, running_iter)
 
                             # Saving
                             print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')

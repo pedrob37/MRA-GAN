@@ -395,8 +395,8 @@ if __name__ == '__main__':
                     real_A = train_sample[0]['image'].cuda()
                     real_B = train_sample[0]['label'].cuda()
 
-                    print(real_A.shape, "Real A!")
-                    print(real_B.shape, "Real B!")
+                    # print(real_A.shape, "Real A!")
+                    # print(real_B.shape, "Real B!")
 
                     # Names (Not needed for now)
                     image_name = os.path.basename(train_sample[0]["image_meta_dict"]["filename_or_obj"][0])

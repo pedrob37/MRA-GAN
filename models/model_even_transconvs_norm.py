@@ -168,9 +168,9 @@ class nnUNet(nn.Module):
         encode_pool4 = self.conv_maxpool4(encode_block4)
         # print(f'x8a shape is {encode_pool4.shape}')
 
-        # if self.z_concat_flag:
-        #     # print(z_input.shape)
-        #     encode_pool4 = self.tiling_and_concat(z_input, encode_pool4)
+        if self.z_concat_flag:
+            # print(z_input.shape)
+            encode_pool4 = self.tiling_and_concat(z_input, encode_pool4)
 
         # Bottleneck
         bottleneck1 = self.bottleneck(encode_pool4)

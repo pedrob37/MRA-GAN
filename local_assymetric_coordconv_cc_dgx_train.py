@@ -76,6 +76,15 @@ if __name__ == '__main__':
     if opt.perceptual:
         criterionPerceptual = torch.nn.L1Loss()
 
+    # MSSSIM
+    from utils.MSSSIM.pytorch_msssim import SSIM
+    from utils.utils import kernel_size_calculator
+    gaussian_kernel_size = kernel_size_calculator(opt.patch_size)
+    criterionMSSSIM = SSIM(data_range=1.0,
+                           gaussian_kernel_size=gaussian_kernel_size,
+                           gradient_based=True,
+                           star_based=False)
+
     def normalise_images(array):
         import numpy as np
         return (array - np.min(array)) / (np.max(array) - np.min(array))
@@ -773,13 +782,18 @@ if __name__ == '__main__':
                         # idt_B_loss = criterionIdt(idt_B, real_A)
 
                         # Total loss
-                        # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + idt_A_loss + idt_B_loss + G_z_loss + z_cycle
-                        if opt.perceptual:
-                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net, opt.patch_size)
-                            # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + G_z_loss + z_cycle + A_perceptual_loss
+                        if opt.perceptual and not opt.msssim:
+                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net, opt.patch_size) * opt.perceptual_weighting
                             total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_perceptual_loss
+                        elif not opt.perceptual and opt.msssim:
+                            A_msssim_loss = criterionMSSSIM(real_A, rec_A)
+                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss
+                        elif opt.perceptual and opt.msssim:
+                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net, opt.patch_size) * opt.perceptual_weighting
+                            A_msssim_loss = criterionMSSSIM(real_A, rec_A)
+                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss + A_perceptual_loss
                         else:
-                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + G_z_loss + z_cycle
+                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
 
                         # Backward
                         total_G_loss.backward()
@@ -981,12 +995,18 @@ if __name__ == '__main__':
                             val_z_cycle = criterionCycle(val_rec_z, val_real_z)
 
                             # Idt losses
-                            # val_idt_A_loss = criterionIdt(val_idt_A, val_real_B)
-                            # val_idt_B_loss = criterionIdt(val_idt_B, val_real_A)
-
-                            # Total loss
-                            # val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_idt_A_loss + val_idt_B_loss + val_G_z_loss + val_z_cycle
-                            val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_G_z_loss + val_z_cycle
+                            if opt.perceptual and not opt.msssim:
+                                val_A_perceptual_loss = perceptual_loss(val_real_A, val_rec_A, perceptual_net, opt.patch_size) * opt.perceptual_weighting
+                                val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_A_perceptual_loss
+                            elif not opt.perceptual and opt.msssim:
+                                val_A_msssim_loss = criterionMSSSIM(val_real_A, val_rec_A)
+                                val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_A_msssim_loss
+                            elif opt.perceptual and opt.msssim:
+                                val_A_perceptual_loss = perceptual_loss(val_real_A, val_rec_A, perceptual_net, opt.patch_size) * opt.perceptual_weighting
+                                val_A_msssim_loss = criterionMSSSIM(val_real_A, val_rec_A)
+                                val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_A_msssim_loss + val_A_perceptual_loss
+                            else:
+                                val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle
 
                         # Graphs
                         # writer.add_scalars('Loss/Val_Adversarial',

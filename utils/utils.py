@@ -632,3 +632,20 @@ def _get_scan_interval(image_size, roi_size, num_spatial_dims: int, overlap: flo
             # scan interval is (1-overlap)*roi_size
             scan_interval.append(int(roi_size[i] * (1 - overlap)))
     return tuple(scan_interval)
+
+
+def kernel_size_calculator(patch_size):
+    from math import floor
+    if patch_size > 160:
+        win_size = 11
+    else:
+        win_size = floor(((patch_size / 2 ** 4) + 1) / 1)
+
+        if win_size <= 1:
+            raise ValueError(
+                "Window size for MS-SSIM can't be calculated. Please increase patch_size's smallest dimension."
+            )
+        # Window size must be odd
+        if win_size % 2 == 0:
+            win_size += 1
+    return win_size
