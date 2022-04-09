@@ -639,7 +639,7 @@ def kernel_size_calculator(patch_size):
     if patch_size > 160:
         win_size = 11
     else:
-        win_size = floor(((patch_size / 2 ** 4) + 1) / 1)
+        win_size = floor(((patch_size / 2 ** 4) + 1) / 2)
 
         if win_size <= 1:
             raise ValueError(
