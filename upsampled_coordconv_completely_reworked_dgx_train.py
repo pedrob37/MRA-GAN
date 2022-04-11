@@ -36,7 +36,7 @@ if __name__ == '__main__':
     opt = TrainOptions().parse()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_number
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # chin added 2022.01.28
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Model choice: Trilinear, nearest neighbour, or nearest neighbour + subpixel convolution
     if opt.upsampling_method == 'nearest':
@@ -74,12 +74,21 @@ if __name__ == '__main__':
     # Data directory
     images_dir = os.path.join(opt.data_path, 'Images')  # MRA!
     labels_dir = os.path.join(opt.data_path, 'Labels')  # Binary!
+    if opt.t1_aid:
+        t1s_dir = os.path.join(opt.data_path, 'T1s')  # T1s!
 
     # Read csv + add directory to filenames
     df = pd.read_csv(opt.csv_file)
     df['Label_Filename'] = df['Filename']
+    if opt.t1_aid:
+        df['T1'] = df['Filename']
+        df['T1'] = t1s_dir + '/' + df['Filename'].astype(str)
+        # Shuffling
+        df['T1'] = df['T1'].sample(frac=1).values
     df['Filename'] = images_dir + '/' + df['Filename'].astype(str)
     df['Label_Filename'] = labels_dir + '/' + df['Label_Filename'].astype(str)
+    # Shuffling
+    df['Label_Filename'] = df['Label_Filename'].sample(frac=1).values
     num_folds = df.fold.nunique()
 
     # Inference fold assignment
@@ -270,25 +279,32 @@ if __name__ == '__main__':
                                                                 num_samples=1),
                                         ToTensord(keys=['image', 'label', 'coords'])])
         elif opt.augmentation_level == "light":
-            train_transform_list = [LoadImaged(keys=['image', 'label']),
-                                    AddChanneld(keys=['image', 'label']),
-                                    CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
-                                    RandAffined(keys=["image", "label", "coords"],
-                                                scale_range=(0.1, 0.1, 0.1),
-                                                rotate_range=(0.25, 0.25, 0.25),
-                                                translate_range=(20, 20, 20),
-                                                mode=("bilinear", "nearest", "nearest"),
-                                                as_tensor_output=False, prob=1.0,
-                                                padding_mode=('zeros', 'zeros', 'border'))]
-                                    # NormalizeIntensityd(keys=['image'], channel_wise=True),
-                                    # RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                    #                         roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
-                                    #                         random_center=True,
-                                    #                         random_size=False,
-                                    #                         num_samples=1),
-                                    # ToTensord(keys=['image', 'label', 'coords'])]
-            if opt.znorm:
-                train_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
+            if opt.t1_aid:
+                train_transform_list = [LoadImaged(keys=['image', 'label', 'T1']),
+                                        AddChanneld(keys=['image', 'label', 'T1']),
+                                        CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
+                                        RandAffined(keys=["image", "label", "coords", 'T1'],
+                                                    scale_range=(0.1, 0.1, 0.1),
+                                                    rotate_range=(0.25, 0.25, 0.25),
+                                                    translate_range=(20, 20, 20),
+                                                    mode=("bilinear", "nearest", "nearest", 'bilinear'),
+                                                    as_tensor_output=False, prob=1.0,
+                                                    padding_mode=('zeros', 'zeros', 'border', 'zeros'))]
+                if opt.znorm:
+                    train_transform_list.append(NormalizeIntensityd(keys=['image', 'T1'], channel_wise=True))
+            else:
+                train_transform_list = [LoadImaged(keys=['image', 'label']),
+                                        AddChanneld(keys=['image', 'label']),
+                                        CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
+                                        RandAffined(keys=["image", "label", "coords"],
+                                                    scale_range=(0.1, 0.1, 0.1),
+                                                    rotate_range=(0.25, 0.25, 0.25),
+                                                    translate_range=(20, 20, 20),
+                                                    mode=("bilinear", "nearest", "nearest"),
+                                                    as_tensor_output=False, prob=1.0,
+                                                    padding_mode=('zeros', 'zeros', 'border'))]
+                if opt.znorm:
+                    train_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
         elif opt.augmentation_level == "none":
             train_transforms = Compose([LoadImaged(keys=['image', 'label']),
                                         AddChanneld(keys=['image', 'label']),
@@ -302,45 +318,76 @@ if __name__ == '__main__':
                                                                 num_samples=1),
                                         ToTensord(keys=['image', 'label', 'coords'])])
 
-        val_transform_list = [LoadImaged(keys=['image', 'label']),
-                              AddChanneld(keys=['image', 'label']),
-                              CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
-        if opt.znorm:
-            val_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
+        # Validation
+        if opt.t1_aid:
+            val_transform_list = [LoadImaged(keys=['image', 'label', 'T1']),
+                                  AddChanneld(keys=['image', 'label', 'T1']),
+                                  CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+            if opt.znorm:
+                val_transform_list.append(NormalizeIntensityd(keys=['image', 'T1'], channel_wise=True))
+        else:
+            val_transform_list = [LoadImaged(keys=['image', 'label', 'T1']),
+                                  AddChanneld(keys=['image', 'label', 'T1']),
+                                  CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+            if opt.znorm:
+                val_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
 
         # Extend remaining transforms
-        train_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                                             roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
-                                                             random_center=True,
-                                                             random_size=False,
-                                                             num_samples=1),
-                                     ToTensord(keys=['image', 'label', 'coords'])])
-        val_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                                           roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
-                                                           random_center=True,
-                                                           random_size=False,
-                                                           num_samples=1),
-                                   ToTensord(keys=['image', 'label', 'coords'])])
+        if opt.t1_aid:
+            train_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords", 'T1'],
+                                                                 roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                                 random_center=True,
+                                                                 random_size=False,
+                                                                 num_samples=1),
+                                         ToTensord(keys=['image', 'label', 'coords', 'T1'])])
+            val_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords", 'T1'],
+                                                               roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                               random_center=True,
+                                                               random_size=False,
+                                                               num_samples=1),
+                                       ToTensord(keys=['image', 'label', 'coords', 'T1'])])
+        else:
+            train_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords"],
+                                                                 roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                                 random_center=True,
+                                                                 random_size=False,
+                                                                 num_samples=1),
+                                         ToTensord(keys=['image', 'label', 'coords'])])
+            val_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords"],
+                                                               roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                               random_center=True,
+                                                               random_size=False,
+                                                               num_samples=1),
+                                       ToTensord(keys=['image', 'label', 'coords'])])
 
         # Compose
         train_transforms = Compose(train_transform_list)
         val_transforms = Compose(val_transform_list)
 
     elif opt.phase == "test":
+        # Inference
         from monai.inferers import sliding_window_inference
-
-        inf_transforms = Compose([LoadImaged(keys=['image', 'label']),
+        if opt.t1_aid:
+            inf_transform_list = [LoadImaged(keys=['image', 'label', 'T1']),
+                                  AddChanneld(keys=['image', 'label', 'T1']),
+                                  CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+            if opt.znorm:
+                inf_transform_list.append(NormalizeIntensityd(keys=['image', 'T1'], channel_wise=True))
+        else:
+            inf_transform_list = [LoadImaged(keys=['image', 'label']),
                                   AddChanneld(keys=['image', 'label']),
-                                  CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
-                                  # RandSpatialCropSamplesd(keys=["image", "label"],
-                                  #                         roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
-                                  #                         random_center=True,
-                                  #                         random_size=False,
-                                  #                         num_samples=1),
-                                  # SpatialPadd(keys=["image", "label"],
-                                  #             spatial_size=opt.patch_size),
-                                  NormalizeIntensityd(keys=['image'], channel_wise=True),
-                                  ToTensord(keys=['image', 'label', 'coords'])])
+                                  CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+            if opt.znorm:
+                inf_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
+
+        # Extend
+        if opt.t1_aid:
+            inf_transform_list.extend([ToTensord(keys=['image', 'label', 'coords', 'T1'])])
+        else:
+            inf_transform_list.extend([ToTensord(keys=['image', 'label', 'coords'])])
+
+        # Compose
+        inf_transforms = Compose(inf_transform_list)
 
     ## Relevant job directories
     base_dir = opt.base_dir
@@ -391,7 +438,10 @@ if __name__ == '__main__':
         elif opt.final_act == "sigmoid":
             G_A_final_act = torch.nn.Sigmoid()
         G_A = nnUNet(4, 1, dropout_level=0, final_act=G_A_final_act)
-        G_B = nnUNet(4, 1, dropout_level=0)
+        if opt.t1_aid:
+            G_B = nnUNet(5, 1, dropout_level=0)
+        else:
+            G_B = nnUNet(4, 1, dropout_level=0)
 
         if opt.perceptual:
             import lpips
@@ -572,20 +622,20 @@ if __name__ == '__main__':
         print(f'The length of the inference is {len(inf_df)}')
 
         # Data dicts
-        # if opt.t1_aid:
-        #     train_data_dict = [{'image': image_name, 'label': label_name, 't1': t1_name} for image_name, label_name, t1_name
-        #                        in zip(train_df.Filename, train_df.Label_Filename, train_df.T1)]
-        #     val_data_dict = [{'image': image_name, 'label': label_name, 't1': t1_name} for image_name, label_name, t1_name
-        #                      in zip(val_df.Filename, val_df.Label_Filename, val_df.T1)]
-        #     inf_data_dict = [{'image': image_name, 'label': label_name, 't1': t1_name} for image_name, label_name, t1_name
-        #                      in zip(inf_df.Filename, inf_df.Label_Filename, inf_df.T1)]
-        # else:
-        train_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
-                           in zip(train_df.Filename, train_df.Label_Filename)]
-        val_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
-                         in zip(val_df.Filename, val_df.Label_Filename)]
-        inf_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
-                         in zip(inf_df.Filename, inf_df.Label_Filename)]
+        if opt.t1_aid:
+            train_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
+                               in zip(train_df.Filename, train_df.Label_Filename, train_df.T1)]
+            val_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
+                             in zip(val_df.Filename, val_df.Label_Filename, val_df.T1)]
+            inf_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
+                             in zip(inf_df.Filename, inf_df.Label_Filename, inf_df.T1)]
+        else:
+            train_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
+                               in zip(train_df.Filename, train_df.Label_Filename)]
+            val_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
+                             in zip(val_df.Filename, val_df.Label_Filename)]
+            inf_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
+                             in zip(inf_df.Filename, inf_df.Label_Filename)]
 
         # Basic length checks
         assert len(train_df.Filename) == len(train_df.Label_Filename)
@@ -667,15 +717,31 @@ if __name__ == '__main__':
                     image_name = os.path.basename(train_sample[0]["image_meta_dict"]["filename_or_obj"][0])
                     label_name = os.path.basename(train_sample[0]["label_meta_dict"]["filename_or_obj"][0])
 
-                    # Pass inputs to model and optimise: Forward loop
-                    fake_B = G_A(torch.cat((real_A, train_coords), dim=1))
-                    # Pair fake B with fake z to generate rec_A: Add Coords as well
-                    rec_A = G_B(torch.cat((fake_B, train_coords), dim=1))
+                    if opt.t1_aid:
+                        # Pass inputs to model and optimise: Forward loop
+                        real_T1 = train_sample[0]['T1'].cuda()
+                        fake_B = G_A(torch.cat((real_A, train_coords), dim=1))
+                        # Pair fake B with fake z to generate rec_A: Add Coords as well and T1
+                        rec_A = G_B(torch.cat((fake_B, real_T1, train_coords), dim=1))
 
-                    # Backward loop: Sample z from normal distribution
-                    fake_A = G_B(torch.cat((real_B, train_coords), dim=1))
-                    # Reconstructed B
-                    rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
+                        # Backward loop: Sample z from normal distribution
+                        fake_A = G_B(torch.cat((real_B, real_T1, train_coords), dim=1))
+                        # Reconstructed B
+                        rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
+                    else:
+                        # Pass inputs to model and optimise: Forward loop
+                        fake_B = G_A(torch.cat((real_A, train_coords), dim=1))
+                        # Pair fake B with fake z to generate rec_A: Add Coords as well
+                        rec_A = G_B(torch.cat((fake_B, train_coords), dim=1))
+
+                        # Backward loop: Sample z from normal distribution
+                        fake_A = G_B(torch.cat((real_B, train_coords), dim=1))
+                        # Reconstructed B
+                        rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
+
+                    # save_img(real_A.cpu().detach().squeeze().numpy(), None, os.path.join(FIG_DIR, f"{total_steps}_real_A.nii.gz"))
+                    # save_img(real_B.cpu().detach().squeeze().numpy(), None, os.path.join(FIG_DIR, f"{total_steps}_real_B.nii.gz"))
+                    # save_img(real_T1.cpu().detach().squeeze().numpy(), None, os.path.join(FIG_DIR, f"{total_steps}_real_T1.nii.gz"))
 
                     # Identity
                     # idt_A = G_A(real_B)
@@ -892,6 +958,8 @@ if __name__ == '__main__':
 
                     # Clean-up
                     del real_A, real_B, train_sample, rec_A, rec_B
+                    if opt.t1_aid:
+                        del real_T1
 
                 if epoch % val_gap == 0:
                     G_A.eval()
@@ -911,15 +979,27 @@ if __name__ == '__main__':
                             label_affine = val_sample[0]['label_meta_dict']['affine'][0, ...]
 
                             # Forward
-                            # Pass inputs to model and optimise: Forward loop
-                            val_fake_B = G_A(torch.cat((val_real_A, val_coords), dim=1))
-                            # Pair fake B with fake z to generate rec_A
-                            val_rec_A = G_B(torch.cat((val_fake_B, val_coords), dim=1))
+                            if opt.t1_aid:
+                                val_real_T1 = val_sample[0]['T1']
+                                # Pass inputs to model and optimise: Forward loop
+                                val_fake_B = G_A(torch.cat((val_real_A, val_coords), dim=1))
+                                # Pair fake B with fake z to generate rec_A
+                                val_rec_A = G_B(torch.cat((val_fake_B, val_real_T1, val_coords), dim=1))
 
-                            # Backward loop
-                            val_fake_A = G_B(torch.cat((val_real_B, val_coords), dim=1))
-                            # Reconstructed B
-                            val_rec_B = G_A(torch.cat((val_fake_A, val_coords), dim=1))
+                                # Backward loop
+                                val_fake_A = G_B(torch.cat((val_real_B, val_real_T1, val_coords), dim=1))
+                                # Reconstructed B
+                                val_rec_B = G_A(torch.cat((val_fake_A, val_coords), dim=1))
+                            else:
+                                # Pass inputs to model and optimise: Forward loop
+                                val_fake_B = G_A(torch.cat((val_real_A, val_coords), dim=1))
+                                # Pair fake B with fake z to generate rec_A
+                                val_rec_A = G_B(torch.cat((val_fake_B, val_coords), dim=1))
+
+                                # Backward loop
+                                val_fake_A = G_B(torch.cat((val_real_B, val_coords), dim=1))
+                                # Reconstructed B
+                                val_rec_B = G_A(torch.cat((val_fake_A, val_coords), dim=1))
 
                             # Identity
                             # val_idt_A = G_A(val_real_B)
@@ -1061,6 +1141,8 @@ if __name__ == '__main__':
 
                         # Clean-up
                         del val_real_A, val_real_B, val_sample, val_rec_A, val_rec_B
+                        if opt.t1_aid:
+                            del val_real_T1
 
                 print(f'End of epoch {epoch} / {opt.niter} \t Time Taken: {time.time() - epoch_start_time:.3f} sec')
                 G_scheduler.step(epoch)
@@ -1091,24 +1173,47 @@ if __name__ == '__main__':
                     inf_affine = inf_sample['image_meta_dict']['affine'][0, ...]
                     label_affine = inf_sample['label_meta_dict']['affine'][0, ...]
 
-                    # Pass inputs to generators
-                    fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), 160, 1, G_A,
-                                                      overlap=overlap,
-                                                      mode='gaussian')
-                    fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_coords), dim=1), 160, 1, G_B,
-                                                      overlap=overlap,
-                                                      mode='gaussian')
+                    if opt.t1_aid:
+                        # Pass inputs to generators
+                        inf_real_T1 = inf_sample[0]['T1']
+                        fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), 160, 1,
+                                                          G_A,
+                                                          overlap=overlap,
+                                                          mode='gaussian')
+                        fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_real_T1, inf_coords), dim=1), 160, 1,
+                                                          G_B,
+                                                          overlap=overlap,
+                                                          mode='gaussian')
 
-                    rec_A = sliding_window_inference(torch.cat((fake_B, inf_coords), dim=1), 160, 1,
-                                                     G_B,
-                                                     overlap=overlap,
-                                                     mode='gaussian')
-                    rec_B = sliding_window_inference(torch.cat((fake_A, inf_coords), dim=1), 160, 1,
-                                                     G_A,
-                                                     overlap=overlap,
-                                                     mode='gaussian')
+                        rec_A = sliding_window_inference(torch.cat((fake_B, inf_real_T1, inf_coords), dim=1), 160, 1,
+                                                         G_B,
+                                                         overlap=overlap,
+                                                         mode='gaussian')
+                        rec_B = sliding_window_inference(torch.cat((fake_A, inf_coords), dim=1), 160, 1,
+                                                         G_A,
+                                                         overlap=overlap,
+                                                         mode='gaussian')
+                    else:
+                        # Pass inputs to generators
+                        fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), 160, 1, G_A,
+                                                          overlap=overlap,
+                                                          mode='gaussian')
+                        fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_coords), dim=1), 160, 1, G_B,
+                                                          overlap=overlap,
+                                                          mode='gaussian')
+
+                        rec_A = sliding_window_inference(torch.cat((fake_B, inf_coords), dim=1), 160, 1,
+                                                         G_B,
+                                                         overlap=overlap,
+                                                         mode='gaussian')
+                        rec_B = sliding_window_inference(torch.cat((fake_A, inf_coords), dim=1), 160, 1,
+                                                         G_A,
+                                                         overlap=overlap,
+                                                         mode='gaussian')
 
                     del inf_real_A, inf_real_B, inf_sample, inf_coords
+                    if opt.t1_aid:
+                        del inf_real_T1
 
                     # Saving: Fakes
                     save_img(normalise_images(fake_A.cpu().detach().squeeze().numpy()),
