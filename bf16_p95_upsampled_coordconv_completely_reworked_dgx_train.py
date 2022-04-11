@@ -17,6 +17,7 @@ from monai.transforms import (Compose,
                               LoadImaged,
                               AddChanneld,
                               RandAffined,
+                              NormalizeIntensityd,
                               RandCropByPosNegLabeld,
                               RandBiasFieldd,
                               ToTensord,
@@ -280,66 +281,71 @@ if __name__ == '__main__':
                                                             sigma_z=(0.25, 0.3)),
                                         RandBiasFieldd(keys=["image"], degree=3, coeff_range=(0.1, 0.25),
                                                        prob=0.25),  # Odd behaviour...
+                                        NormalizeIntensityd(keys=['image'], channel_wise=True),
                                         RandGaussianNoiseD(keys=["image"], std=0.2, prob=0.5),
                                         RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                                                roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                                roi_size=(
+                                                                opt.patch_size, opt.patch_size, opt.patch_size),
                                                                 random_center=True,
                                                                 random_size=False,
                                                                 num_samples=1),
                                         ToTensord(keys=['image', 'label', 'coords'])])
         elif opt.augmentation_level == "light":
-            # TODO list transforms for easy composition with flags
-            train_transforms = Compose([LoadImaged(keys=['image', 'label']),
-                                        AddChanneld(keys=['image', 'label']),
-                                        CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
-                                        RandAffined(keys=["image", "label", "coords"],
-                                                    scale_range=(0.1, 0.1, 0.1),
-                                                    rotate_range=(0.25, 0.25, 0.25),
-                                                    translate_range=(20, 20, 20),
-                                                    mode=("bilinear", "nearest", "nearest"),
-                                                    as_tensor_output=False, prob=1.0,
-                                                    padding_mode=('zeros', 'zeros', 'border')),
-                                        RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                                                roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
-                                                                random_center=True,
-                                                                random_size=False,
-                                                                num_samples=1),
-                                        ToTensord(keys=['image', 'label', 'coords'])])
+            train_transform_list = [LoadImaged(keys=['image', 'label']),
+                                    AddChanneld(keys=['image', 'label']),
+                                    CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
+                                    RandAffined(keys=["image", "label", "coords"],
+                                                scale_range=(0.1, 0.1, 0.1),
+                                                rotate_range=(0.25, 0.25, 0.25),
+                                                translate_range=(20, 20, 20),
+                                                mode=("bilinear", "nearest", "nearest"),
+                                                as_tensor_output=False, prob=1.0,
+                                                padding_mode=('zeros', 'zeros', 'border'))]
+                                    # NormalizeIntensityd(keys=['image'], channel_wise=True),
+                                    # RandSpatialCropSamplesd(keys=["image", "label", "coords"],
+                                    #                         roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                    #                         random_center=True,
+                                    #                         random_size=False,
+                                    #                         num_samples=1),
+                                    # ToTensord(keys=['image', 'label', 'coords'])]
+            if opt.znorm:
+                train_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
         elif opt.augmentation_level == "none":
             train_transforms = Compose([LoadImaged(keys=['image', 'label']),
                                         AddChanneld(keys=['image', 'label']),
                                         CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
+                                        NormalizeIntensityd(keys=['image'], channel_wise=True),
                                         RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                                                roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                                roi_size=(
+                                                                opt.patch_size, opt.patch_size, opt.patch_size),
                                                                 random_center=True,
                                                                 random_size=False,
                                                                 num_samples=1),
                                         ToTensord(keys=['image', 'label', 'coords'])])
 
-        val_transforms = Compose([LoadImaged(keys=['image', 'label']),
-                                  AddChanneld(keys=['image', 'label']),
-                                  CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
-                                  RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                                          roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
-                                                          random_center=True,
-                                                          random_size=False,
-                                                          num_samples=1),
-                                  # SpatialPadd(keys=["image", "label"],
-                                  #             spatial_size=opt.patch_size),
-                                  ToTensord(keys=['image', 'label', 'coords'])])
-    elif opt.phase == "test":
-        from monai.inferers import sliding_window_inference
-        inf_transforms = Compose([LoadImaged(keys=['image', 'label']),
-                                  AddChanneld(keys=['image', 'label']),
-                                  CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
-                                  # RandSpatialCropSamplesd(keys=["image", "label"],
-                                  #                         roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
-                                  #                         random_center=True,
-                                  #                         random_size=False,
-                                  #                         num_samples=1),
-                                  # SpatialPadd(keys=["image", "label"],
-                                  #             spatial_size=opt.patch_size),
-                                  ToTensord(keys=['image', 'label', 'coords'])])
+        val_transform_list = [LoadImaged(keys=['image', 'label']),
+                              AddChanneld(keys=['image', 'label']),
+                              CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+        if opt.znorm:
+            val_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
+
+        # Extend remaining transforms
+        train_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords"],
+                                                             roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                             random_center=True,
+                                                             random_size=False,
+                                                             num_samples=1),
+                                     ToTensord(keys=['image', 'label', 'coords'])])
+        val_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords"],
+                                                           roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                           random_center=True,
+                                                           random_size=False,
+                                                           num_samples=1),
+                                   ToTensord(keys=['image', 'label', 'coords'])])
+
+        # Compose
+        train_transforms = Compose(train_transform_list)
+        val_transforms = Compose(val_transform_list)
 
     ## Relevant job directories
     base_dir = opt.base_dir

@@ -572,6 +572,14 @@ if __name__ == '__main__':
         print(f'The length of the inference is {len(inf_df)}')
 
         # Data dicts
+        # if opt.t1_aid:
+        #     train_data_dict = [{'image': image_name, 'label': label_name, 't1': t1_name} for image_name, label_name, t1_name
+        #                        in zip(train_df.Filename, train_df.Label_Filename, train_df.T1)]
+        #     val_data_dict = [{'image': image_name, 'label': label_name, 't1': t1_name} for image_name, label_name, t1_name
+        #                      in zip(val_df.Filename, val_df.Label_Filename, val_df.T1)]
+        #     inf_data_dict = [{'image': image_name, 'label': label_name, 't1': t1_name} for image_name, label_name, t1_name
+        #                      in zip(inf_df.Filename, inf_df.Label_Filename, inf_df.T1)]
+        # else:
         train_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
                            in zip(train_df.Filename, train_df.Label_Filename)]
         val_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
