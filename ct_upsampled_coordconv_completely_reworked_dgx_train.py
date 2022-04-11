@@ -5,7 +5,7 @@ from options.train_options import TrainOptions
 import time
 from models import create_model
 from utils.visualizer import Visualizer
-from utils.utils import create_path, save_img, CoordConvd, kernel_size_calculator
+from utils.utils import create_path, save_img, CoordConvd
 import monai
 import pandas as pd
 import numpy as np
@@ -20,14 +20,13 @@ from monai.transforms import (Compose,
                               RandAffined,
                               RandCropByPosNegLabeld,
                               RandBiasFieldd,
+                              NormalizeIntensityd,
                               ToTensord,
                               RandSpatialCropSamplesd,
-                              NormalizeIntensityd,
                               RandGaussianSmoothd,
                               RandGaussianNoiseD,
                               SpatialPadd,
                               )
-from utils.MSSSIM.pytorch_msssim.ssim import SSIM
 
 if __name__ == '__main__':
     torch.cuda.empty_cache()
@@ -41,31 +40,24 @@ if __name__ == '__main__':
     # Model choice: Trilinear, nearest neighbour, or nearest neighbour + subpixel convolution
     if opt.upsampling_method == 'nearest':
         from models.model_nn_upsamps_norm import nnUNet
-
         print("Using nearest neighbour interpolation for upsampling!")
     elif opt.upsampling_method == 'exp-nearest':
         from models.extended_model_nn_upsamps_norm import nnUNet
-
         print("Using Expanded nearest neighbour interpolation for upsampling!")
     elif opt.upsampling_method == 'trilinear':
         from models.model_upsamps_norm import nnUNet
-
         print("Using trilinear interpolation for upsampling!")
     elif opt.upsampling_method == 'subpixel':
         from models.model_subpixel_upsamps_norm import nnUNet
-
         print("Using nearest neighbour interpolation + subpixel convolution for upsampling!")
     elif opt.upsampling_method == "trans":
         from models.model_transconvs_norm import nnUNet
-
         print("Using transposed convolutions for upsampling!")
     elif opt.upsampling_method == "even-trans":
         from models.model_even_transconvs_norm import nnUNet
-
         print("Using even transposed convolutions for upsampling!")
     elif opt.upsampling_method == "exp-trans":
         from models.extended_model_transconvs_norm import nnUNet
-
         print("Using Expanded transposed convolutions for upsampling!")
     else:
         raise SyntaxError("Missing upsampling method parameter!")
@@ -83,7 +75,7 @@ if __name__ == '__main__':
     num_folds = df.fold.nunique()
 
     # Inference fold assignment
-    inf_fold = 9
+    inf_fold = 5
     inf_df = df[df.fold == inf_fold]
     inf_df.reset_index(drop=True, inplace=True)
 
@@ -106,20 +98,9 @@ if __name__ == '__main__':
     criterionCycle = torch.nn.L1Loss()
     criterionIdt = torch.nn.L1Loss()
 
-    # MS-SSIM
-    if opt.msssim:
-        gaussian_kernel_size = kernel_size_calculator(opt.patch_size)
-        criterionMSSSIM = SSIM(data_range=1.0,
-                               gaussian_kernel_size=gaussian_kernel_size,
-                               gradient_based=True,
-                               star_based=False,
-                               gradient_masks_weights=None)
-
-
     def normalise_images(array):
         import numpy as np
         return (array - np.min(array)) / (np.max(array) - np.min(array))
-
 
     def discriminator_loss(gen_images, real_images, discriminator, real_label_flip_chance=0.25):
         """
@@ -161,11 +142,20 @@ if __name__ == '__main__':
                fake_disc_accuracy_ds1, \
                real_disc_prediction, fake_disc_prediction
 
-
     def perceptual_loss(real_images, rec_images, network_choice, num_slices):
         """
         Perceptual loss between original image and reconstructed image
         """
+        # real_disc_prediction = discriminator.forward(real_images)
+        # fake_disc_prediction = discriminator.forward(rec_images)
+        #
+        # layer_losses = 0
+        # for j in range(len(real_disc_prediction[0])):
+        #     print(j, real_disc_prediction[0][j].numel())
+        #     layer_losses += criterionPerceptual(real_disc_prediction[0][j],
+        #                                         fake_disc_prediction[0][j])  # / real_disc_prediction[0][j].numel()
+
+        # x_hat = model(real_images)
         # Sagittal
         x_2d = rec_images.float().permute(0, 2, 1, 3, 4).contiguous().view(-1,
                                                                            rec_images.shape[1],
@@ -230,7 +220,6 @@ if __name__ == '__main__':
 
         return p_loss
 
-
     def generator_loss(gen_images, discriminator):
         """
         The generator loss is calculated by determining how realistic
@@ -239,7 +228,6 @@ if __name__ == '__main__':
         output = discriminator.forward(gen_images)
         gen_fake_loss = multiscale_discriminator_loss(output, target_is_real=True)
         return gen_fake_loss
-
 
     # Augmentations/ Transforms
     if opt.phase == "train":
@@ -263,75 +251,59 @@ if __name__ == '__main__':
                                         NormalizeIntensityd(keys=['image'], channel_wise=True),
                                         RandGaussianNoiseD(keys=["image"], std=0.2, prob=0.5),
                                         RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                                                roi_size=(
-                                                                opt.patch_size, opt.patch_size, opt.patch_size),
+                                                                roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                                 random_center=True,
                                                                 random_size=False,
                                                                 num_samples=1),
                                         ToTensord(keys=['image', 'label', 'coords'])])
         elif opt.augmentation_level == "light":
-            train_transform_list = [LoadImaged(keys=['image', 'label']),
-                                    AddChanneld(keys=['image', 'label']),
-                                    CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
-                                    RandAffined(keys=["image", "label", "coords"],
-                                                scale_range=(0.1, 0.1, 0.1),
-                                                rotate_range=(0.25, 0.25, 0.25),
-                                                translate_range=(20, 20, 20),
-                                                mode=("bilinear", "nearest", "nearest"),
-                                                as_tensor_output=False, prob=1.0,
-                                                padding_mode=('zeros', 'zeros', 'border'))]
-                                    # NormalizeIntensityd(keys=['image'], channel_wise=True),
-                                    # RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                    #                         roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
-                                    #                         random_center=True,
-                                    #                         random_size=False,
-                                    #                         num_samples=1),
-                                    # ToTensord(keys=['image', 'label', 'coords'])]
-            if opt.znorm:
-                train_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
+            train_transforms = Compose([LoadImaged(keys=['image', 'label']),
+                                        AddChanneld(keys=['image', 'label']),
+                                        CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
+                                        RandAffined(keys=["image", "label", "coords"],
+                                                    scale_range=(0.2, 0.2, 0.2),
+                                                    rotate_range=(0.50, 0.50, 0.50),
+                                                    translate_range=(40, 40, 40),
+                                                    mode=("bilinear", "nearest", "nearest"),
+                                                    as_tensor_output=False, prob=1.0,
+                                                    padding_mode=('zeros', 'zeros', 'border')),
+                                        NormalizeIntensityd(keys=['image'], channel_wise=True),
+                                        RandSpatialCropSamplesd(keys=["image", "label", "coords"],
+                                                                roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                                random_center=True,
+                                                                random_size=False,
+                                                                num_samples=1),
+                                        ToTensord(keys=['image', 'label', 'coords'])])
         elif opt.augmentation_level == "none":
             train_transforms = Compose([LoadImaged(keys=['image', 'label']),
                                         AddChanneld(keys=['image', 'label']),
                                         CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
                                         NormalizeIntensityd(keys=['image'], channel_wise=True),
                                         RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                                                roi_size=(
-                                                                opt.patch_size, opt.patch_size, opt.patch_size),
+                                                                roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                                                 random_center=True,
                                                                 random_size=False,
                                                                 num_samples=1),
                                         ToTensord(keys=['image', 'label', 'coords'])])
 
-        val_transform_list = [LoadImaged(keys=['image', 'label']),
-                              AddChanneld(keys=['image', 'label']),
-                              CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
-        if opt.znorm:
-            val_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
-
-        # Extend remaining transforms
-        train_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                                             roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
-                                                             random_center=True,
-                                                             random_size=False,
-                                                             num_samples=1),
-                                     ToTensord(keys=['image', 'label', 'coords'])])
-        val_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                                           roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
-                                                           random_center=True,
-                                                           random_size=False,
-                                                           num_samples=1),
-                                   ToTensord(keys=['image', 'label', 'coords'])])
-
-        # Compose
-        train_transforms = Compose(train_transform_list)
-        val_transforms = Compose(val_transform_list)
-
+        val_transforms = Compose([LoadImaged(keys=['image', 'label']),
+                                  AddChanneld(keys=['image', 'label']),
+                                  CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
+                                  NormalizeIntensityd(keys=['image'], channel_wise=True),
+                                  RandSpatialCropSamplesd(keys=["image", "label", "coords"],
+                                                          roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                          random_center=True,
+                                                          random_size=False,
+                                                          num_samples=1),
+                                  # SpatialPadd(keys=["image", "label"],
+                                  #             spatial_size=opt.patch_size),
+                                  ToTensord(keys=['image', 'label', 'coords'])])
     elif opt.phase == "test":
         from monai.inferers import sliding_window_inference
-
         inf_transforms = Compose([LoadImaged(keys=['image', 'label']),
                                   AddChanneld(keys=['image', 'label']),
                                   CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
+                                  NormalizeIntensityd(keys=['image'], channel_wise=True),
                                   # RandSpatialCropSamplesd(keys=["image", "label"],
                                   #                         roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
                                   #                         random_center=True,
@@ -339,7 +311,6 @@ if __name__ == '__main__':
                                   #                         num_samples=1),
                                   # SpatialPadd(keys=["image", "label"],
                                   #             spatial_size=opt.patch_size),
-                                  NormalizeIntensityd(keys=['image'], channel_wise=True),
                                   ToTensord(keys=['image', 'label', 'coords'])])
 
     ## Relevant job directories
@@ -376,7 +347,7 @@ if __name__ == '__main__':
     LOAD = True
 
     # Folds
-    for fold in range(10):
+    for fold in range(6):
         # Define models and associated variables
         print('\nFOLD', fold)
         # Pre-loading sequence: Two out channels correspond to number of classes
@@ -395,7 +366,6 @@ if __name__ == '__main__':
 
         if opt.perceptual:
             import lpips
-
             perceptual_net = lpips.LPIPS(pretrained=True, net='squeeze')
             # if torch.cuda.device_count() > 1:
             perceptual_net = torch.nn.DataParallel(perceptual_net)
@@ -416,7 +386,6 @@ if __name__ == '__main__':
 
         # Optimizers + schedulers
         import itertools
-
         G_optimizer = torch.optim.Adam(itertools.chain(G_A.parameters(), G_B.parameters()),
                                        lr=opt.gen_lr, betas=(0.5, 0.999))
         D_optimizer = torch.optim.Adam(itertools.chain(D_A.parameters(), D_B.parameters()),
@@ -468,7 +437,6 @@ if __name__ == '__main__':
         if LOAD and num_files > 0 and opt.phase != 'inference':
             # Find latest model
             import glob
-
             # total_steps = model.load_networks('latest', models_dir=MODELS_DIR, phase=opt.phase)
             model_files = glob.glob(os.path.join(MODELS_DIR, '*.pth'))
             for some_model_file in model_files:
@@ -513,7 +481,6 @@ if __name__ == '__main__':
         elif LOAD and num_files > 0 and opt.phase == 'inference':
             # Find latest model
             import glob
-
             # total_steps = model.load_networks('latest', models_dir=MODELS_DIR, phase=opt.phase)
             model_files = glob.glob(os.path.join(MODELS_DIR, '*.pth'))
             for some_model_file in model_files:
@@ -677,8 +644,8 @@ if __name__ == '__main__':
                     # Only begin to train discriminator after model has started to converge
                     if epoch >= 0:
                         adv_start = time.time()
-                        D_A_total_loss = torch.zeros(1, )
-                        D_B_total_loss = torch.zeros(1, )
+                        D_A_total_loss = torch.zeros(1,)
+                        D_B_total_loss = torch.zeros(1,)
                         agg_real_D_A_acc = 0
                         agg_fake_D_A_acc = 0
                         agg_real_D_B_acc = 0
@@ -687,16 +654,14 @@ if __name__ == '__main__':
                         for _ in range(1):
                             # Update discriminator by looping N times
                             # with torch.cuda.amp.autocast(enabled=True):
-                            D_B_loss, real_D_B_acc, fake_D_B_acc, _, fake_D_B_out = discriminator_loss(
-                                gen_images=fake_B,
-                                real_images=real_B,
-                                discriminator=D_B,
-                                real_label_flip_chance=opt.label_flipping_chance)
-                            D_A_loss, real_D_A_acc, fake_D_A_acc, _, fake_D_A_out = discriminator_loss(
-                                gen_images=fake_A,
-                                real_images=real_A,
-                                discriminator=D_A,
-                                real_label_flip_chance=opt.label_flipping_chance)
+                            D_B_loss, real_D_B_acc, fake_D_B_acc, _, fake_D_B_out = discriminator_loss(gen_images=fake_B,
+                                                                                                       real_images=real_B,
+                                                                                                       discriminator=D_B,
+                                                                                                       real_label_flip_chance=opt.label_flipping_chance)
+                            D_A_loss, real_D_A_acc, fake_D_A_acc, _, fake_D_A_out = discriminator_loss(gen_images=fake_A,
+                                                                                                       real_images=real_A,
+                                                                                                       discriminator=D_A,
+                                                                                                       real_label_flip_chance=opt.label_flipping_chance)
 
                             # if overall_disc_acc < disc_acc_thr_upper:
                             D_optimizer.zero_grad()
@@ -748,18 +713,9 @@ if __name__ == '__main__':
                         # idt_B_loss = criterionIdt(idt_B, real_A)
 
                         # Total loss
-                        if opt.perceptual and not opt.msssim:
-                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net,
-                                                                opt.patch_size) * opt.perceptual_weighting
+                        if opt.perceptual:
+                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net, opt.patch_size)
                             total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_perceptual_loss
-                        elif not opt.perceptual and opt.msssim:
-                            A_msssim_loss = criterionMSSSIM(real_A, rec_A) * opt.msssim_weighting
-                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss
-                        elif opt.perceptual and opt.msssim:
-                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net,
-                                                                opt.patch_size) * opt.perceptual_weighting
-                            A_msssim_loss = criterionMSSSIM(real_A, rec_A) * opt.msssim_weighting
-                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss + A_perceptual_loss
                         else:
                             total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
 
@@ -769,14 +725,11 @@ if __name__ == '__main__':
                         # G optimization
                         G_optimizer.step()
 
-                        if opt.perceptual and opt.msssim:
-                            print(f"Percep: {A_perceptual_loss.cpu().detach().tolist():.3f}, "
-                                  f"MS-SSIM: {A_msssim_loss.cpu().detach().tolist()[0][0]:.3f}, "
-                                  f"G_A: {G_A_loss.cpu().detach().tolist():.3f}, "
-                                  f"G_B: {G_B_loss.cpu().detach().tolist():.3f}, "
-                                  f"cycle_A: {A_cycle.cpu().detach().tolist():.3f}, "
-                                  f"cycle_B: {B_cycle.cpu().detach().tolist():.3f}"
-                                  )
+                        # print(total_G_loss.cpu().detach(),
+                        #       A_perceptual_loss.cpu().detach(),
+                        #       G_A_loss.cpu().detach(), G_B_loss.cpu().detach(), A_cycle.cpu().detach(), B_cycle.cpu().detach(),
+                        #       D_A_loss.cpu().detach(),
+                        #       D_B_loss.cpu().detach())
 
                     # if total_steps % opt.print_freq == 0:
                     if total_steps % opt.save_latest_freq == 0:
@@ -787,13 +740,13 @@ if __name__ == '__main__':
                         G_B.cpu()
                         D_A.cpu()
                         D_B.cpu()
-                        save_filename = f'epoch_{epoch + 1}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
+                        save_filename = f'epoch_{epoch+1}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
                         current_state_dict = {
                             'G_optimizer_state_dict': G_optimizer.state_dict(),
                             'D_optimizer_state_dict': D_optimizer.state_dict(),
                             'G_scheduler_state_dict': G_scheduler.state_dict(),
                             'D_scheduler_state_dict': D_scheduler.state_dict(),
-                            'epoch': epoch + 1,
+                            'epoch': epoch+1,
                             'running_iter': running_iter,
                             'total_steps': total_steps,
                             'batch_size': opt.batch_size,
@@ -813,31 +766,41 @@ if __name__ == '__main__':
                         D_A.cuda()
                         D_B.cuda()
 
-                    if total_steps % 250 == 0:
+                    if total_steps % 5 == 0:
                         # Graphs
-                        loss_adv_dict = {"Total_G_loss": total_G_loss,
-                                         "Generator_A": G_A_loss,
-                                         "Generator_B": G_B_loss,
-                                         "Discriminator_A": D_A_loss,
-                                         "Discriminator_B": D_B_loss,
-                                         }
-                        loss_granular_dict = {"total_G_loss": total_G_loss,
-                                              "Generator_A": G_A_loss,
-                                              "Generator_B": G_B_loss,
-                                              "cycle_A": A_cycle,
-                                              "cycle_B": B_cycle,
-                                              }
                         if opt.perceptual:
-                            loss_adv_dict["Perceptual_A"] = A_perceptual_loss
-                            loss_granular_dict["Perceptual_A"] = A_perceptual_loss
-                        if opt.msssim:
-                            loss_adv_dict["MSSSIM_A"] = A_msssim_loss
-                            loss_granular_dict["MSSSIM_A"] = A_msssim_loss
-
                             writer.add_scalars('Loss/Adversarial',
-                                               loss_adv_dict, running_iter)
+                                               {"Total_G_loss": total_G_loss,
+                                                "Generator_A": G_A_loss,
+                                                "Generator_B": G_B_loss,
+                                                "Discriminator_A": D_A_loss,
+                                                "Discriminator_B": D_B_loss,
+                                                "Perceptual_A": A_perceptual_loss,
+                                                }, running_iter)
                             writer.add_scalars('Loss/Granular_G',
-                                               loss_granular_dict, running_iter)
+                                               {"total_G_loss": total_G_loss,
+                                                "Generator_A": G_A_loss,
+                                                "Generator_B": G_B_loss,
+                                                "cycle_A": A_cycle,
+                                                "cycle_B": B_cycle,
+                                                "Perceptual_A": A_perceptual_loss,
+                                            }, running_iter)
+                        else:
+                            writer.add_scalars('Loss/Adversarial',
+                                               {"Total_G_loss": total_G_loss,
+                                                "Generator_A": G_A_loss,
+                                                "Generator_B": G_B_loss,
+                                                "Discriminator_A": D_A_loss,
+                                                "Discriminator_B": D_B_loss,
+                                                }, running_iter)
+
+                            writer.add_scalars('Loss/Granular_G',
+                                               {"total_G_loss": total_G_loss,
+                                                "Generator_A": G_A_loss,
+                                                "Generator_B": G_B_loss,
+                                                "cycle_A": A_cycle,
+                                                "cycle_B": B_cycle,
+                                            }, running_iter)
 
                         # Images
                         # Reals
@@ -936,45 +899,53 @@ if __name__ == '__main__':
                             val_A_cycle = criterionCycle(val_rec_A, val_real_A)
                             val_B_cycle = criterionCycle(val_rec_B, val_real_B)
 
-                            if opt.perceptual and not opt.msssim:
-                                val_A_perceptual_loss = perceptual_loss(val_real_A, val_rec_A, perceptual_net,
-                                                                        opt.patch_size) * opt.perceptual_weighting
+                            if opt.perceptual:
+                                val_A_perceptual_loss = perceptual_loss(val_real_A, val_rec_A, perceptual_net, opt.patch_size)
                                 val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_A_perceptual_loss
-                            elif not opt.perceptual and opt.msssim:
-                                val_A_msssim_loss = criterionMSSSIM(val_real_A, val_rec_A) * opt.msssim_weighting
-                                val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_A_msssim_loss
-                            elif opt.perceptual and opt.msssim:
-                                val_A_perceptual_loss = perceptual_loss(val_real_A, val_rec_A, perceptual_net,
-                                                                        opt.patch_size) * opt.perceptual_weighting
-                                val_A_msssim_loss = criterionMSSSIM(val_real_A, val_rec_A) * opt.msssim_weighting
-                                val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_A_msssim_loss + val_A_perceptual_loss
                             else:
                                 val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle
+                            # Idt losses
+                            # val_idt_A_loss = criterionIdt(val_idt_A, val_real_B)
+                            # val_idt_B_loss = criterionIdt(val_idt_B, val_real_A)
+
+                            # Total loss
+                            # val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle + val_idt_A_loss + val_idt_B_loss
 
                         # Graphs
-                        val_loss_adv_dict = {
-                            "Generator_A": val_G_A_loss,
-                            "Generator_B": val_G_B_loss,
-                            "Discriminator_A": val_D_A_loss,
-                            "Discriminator_B": val_D_B_loss,
-                        }
-                        val_loss_granular_dict = {
-                            "Generator_A": val_G_A_loss,
-                            "Generator_B": val_G_B_loss,
-                            "Discriminator_A": val_D_A_loss,
-                            "Discriminator_B": val_D_B_loss,
-                        }
                         if opt.perceptual:
-                            val_loss_adv_dict["Perceptual_A"] = val_A_perceptual_loss
-                            val_loss_granular_dict["Perceptual_A"] = val_A_perceptual_loss
-                        if opt.msssim:
-                            val_loss_adv_dict["MSSSIM_A"] = val_A_msssim_loss
-                            val_loss_granular_dict["MSSSIM_A"] = val_A_msssim_loss
-                        writer.add_scalars('Loss/Val_Adversarial',
-                                           val_loss_adv_dict, running_iter)
+                            writer.add_scalars('Loss/Val_Adversarial',
+                                               {
+                                                "Generator_A": val_G_A_loss,
+                                                "Generator_B": val_G_B_loss,
+                                                "Discriminator_A": val_D_A_loss,
+                                                "Discriminator_B": val_D_B_loss,
+                                                "Perceptual_A": val_A_perceptual_loss,
+                                               }, running_iter)
 
-                        writer.add_scalars('Loss/Val_Granular_G',
-                                           val_loss_granular_dict, running_iter)
+                            writer.add_scalars('Loss/Val_Granular_G',
+                                               {"total_G_loss": val_total_G_loss,
+                                                "Generator_A": val_G_A_loss,
+                                                "Generator_B": val_G_B_loss,
+                                                "cycle_A": val_A_cycle,
+                                                "cycle_B": val_B_cycle,
+                                                "Perceptual_A": val_A_perceptual_loss,
+                                                }, running_iter)
+                        else:
+                            writer.add_scalars('Loss/Val_Adversarial',
+                                               {
+                                                "Generator_A": val_G_A_loss,
+                                                "Generator_B": val_G_B_loss,
+                                                "Discriminator_A": val_D_A_loss,
+                                                "Discriminator_B": val_D_B_loss,
+                                               }, running_iter)
+
+                            writer.add_scalars('Loss/Val_Granular_G',
+                                               {"total_G_loss": val_total_G_loss,
+                                                "Generator_A": val_G_A_loss,
+                                                "Generator_B": val_G_B_loss,
+                                                "cycle_A": val_A_cycle,
+                                                "cycle_B": val_B_cycle,
+                                                }, running_iter)
 
                         # Saving
                         print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
@@ -984,13 +955,13 @@ if __name__ == '__main__':
                         G_B.cpu()
                         D_A.cpu()
                         D_B.cpu()
-                        save_filename = f'epoch_{epoch + 1}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
+                        save_filename = f'epoch_{epoch+1}_checkpoint_iters_{running_iter}_fold_{fold}.pth'
                         current_state_dict = {
                             'G_optimizer_state_dict': G_optimizer.state_dict(),
                             'D_optimizer_state_dict': D_optimizer.state_dict(),
                             'G_scheduler_state_dict': G_scheduler.state_dict(),
                             'D_scheduler_state_dict': D_scheduler.state_dict(),
-                            'epoch': epoch + 1,
+                            'epoch': epoch+1,
                             'running_iter': running_iter,
                             'total_steps': total_steps,
                             'batch_size': opt.batch_size,
@@ -1013,40 +984,34 @@ if __name__ == '__main__':
                         # Images
                         # Reals
                         img2tensorboard.add_animated_gif(writer=writer,
-                                                         image_tensor=normalise_images(
-                                                             val_real_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         image_tensor=normalise_images(val_real_B[0, 0, ...][None, ...].cpu().detach().numpy()),
                                                          tag=f'Validation/Real_B_fold_{fold}',
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
                         img2tensorboard.add_animated_gif(writer=writer,
-                                                         image_tensor=normalise_images(
-                                                             val_real_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         image_tensor=normalise_images(val_real_A[0, 0, ...][None, ...].cpu().detach().numpy()),
                                                          tag=f'Validation/Real_A_fold_{fold}',
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
 
                         # Generated
                         img2tensorboard.add_animated_gif(writer=writer,
-                                                         image_tensor=normalise_images(
-                                                             val_fake_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         image_tensor=normalise_images(val_fake_B[0, 0, ...][None, ...].cpu().detach().numpy()),
                                                          tag=f'Validation/Fake_B_fold_{fold}',
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
                         img2tensorboard.add_animated_gif(writer=writer,
-                                                         image_tensor=normalise_images(
-                                                             val_fake_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         image_tensor=normalise_images(val_fake_A[0, 0, ...][None, ...].cpu().detach().numpy()),
                                                          tag=f'Validation/Fake_A_fold_{fold}',
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
                         img2tensorboard.add_animated_gif(writer=writer,
-                                                         image_tensor=normalise_images(
-                                                             val_rec_B[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         image_tensor=normalise_images(val_rec_B[0, 0, ...][None, ...].cpu().detach().numpy()),
                                                          tag=f'Validation/Rec_B_fold_{fold}',
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
                         img2tensorboard.add_animated_gif(writer=writer,
-                                                         image_tensor=normalise_images(
-                                                             val_rec_A[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                         image_tensor=normalise_images(val_rec_A[0, 0, ...][None, ...].cpu().detach().numpy()),
                                                          tag=f'Validation/Rec_A_fold_{fold}',
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
@@ -1060,7 +1025,6 @@ if __name__ == '__main__':
         elif opt.phase == "test":
             # Overlap and sliding window inference
             from monai.inferers import sliding_window_inference
-
             overlap = 0.3
 
 
@@ -1101,6 +1065,7 @@ if __name__ == '__main__':
                                                      mode='gaussian')
 
                     del inf_real_A, inf_real_B, inf_sample, inf_coords
+
 
                     # Saving: Fakes
                     save_img(normalise_images(fake_A.cpu().detach().squeeze().numpy()),
