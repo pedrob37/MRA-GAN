@@ -326,8 +326,8 @@ if __name__ == '__main__':
             if opt.znorm:
                 val_transform_list.append(NormalizeIntensityd(keys=['image', 'T1'], channel_wise=True))
         else:
-            val_transform_list = [LoadImaged(keys=['image', 'label', 'T1']),
-                                  AddChanneld(keys=['image', 'label', 'T1']),
+            val_transform_list = [LoadImaged(keys=['image', 'label']),
+                                  AddChanneld(keys=['image', 'label']),
                                   CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
             if opt.znorm:
                 val_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
@@ -980,7 +980,7 @@ if __name__ == '__main__':
 
                             # Forward
                             if opt.t1_aid:
-                                val_real_T1 = val_sample[0]['T1']
+                                val_real_T1 = val_sample[0]['T1'].cuda()
                                 # Pass inputs to model and optimise: Forward loop
                                 val_fake_B = G_A(torch.cat((val_real_A, val_coords), dim=1))
                                 # Pair fake B with fake z to generate rec_A
