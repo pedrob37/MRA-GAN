@@ -118,11 +118,32 @@ if __name__ == '__main__':
     # MS-SSIM
     if opt.msssim:
         gaussian_kernel_size = kernel_size_calculator(opt.patch_size)
-        criterionMSSSIM = SSIM(data_range=1.0,
-                               gaussian_kernel_size=gaussian_kernel_size,
-                               gradient_based=True,
-                               star_based=False,
-                               gradient_masks_weights=None)
+        if opt.standard_msssim and not opt.znorm:
+            criterionMSSSIM = SSIM(data_range=1.0,
+                                   gaussian_kernel_size=gaussian_kernel_size,
+                                   gradient_based=True,
+                                   star_based=False,
+                                   gradient_masks_weights=None)
+        elif opt.standard_msssim and opt.znorm:
+            criterionMSSSIM = SSIM(data_range=40.0,  # z-norm images have higher max!
+                                   gaussian_kernel_size=gaussian_kernel_size,
+                                   gradient_based=True,
+                                   star_based=False,
+                                   gradient_masks_weights=None)
+        elif not opt.standard_msssim and not opt.znorm:
+            criterionMSSSIM = SSIM(data_range=1.0,
+                                   gaussian_kernel_size=gaussian_kernel_size,
+                                   gradient_based=True,
+                                   star_based=False,
+                                   gradient_masks_weights=None,
+                                   multi_scale_weights=(0.8, 0.1, 0.05, 0.025, 0.025))
+        elif not opt.standard_msssim and opt.znorm:
+            criterionMSSSIM = SSIM(data_range=40.0,
+                                   gaussian_kernel_size=gaussian_kernel_size,
+                                   gradient_based=True,
+                                   star_based=False,
+                                   gradient_masks_weights=None,
+                                   multi_scale_weights=(0.8, 0.1, 0.05, 0.025, 0.025))
 
 
     def normalise_images(array):

@@ -16,6 +16,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--final_act', type=str, default="leaky", help='Activation for G_A network: i.e. MRA -> Vasc.')
         parser.add_argument('--perceptual', type=self.str2bool, nargs='?', const=True, default=False, help='Whether to use perceptual loss')
         parser.add_argument('--msssim', type=self.str2bool, nargs='?', const=True, default=False, help='Whether to use perceptual loss')
+        parser.add_argument('--standard_msssim', type=self.str2bool, nargs='?', const=True, default=True, help='Whether to use perceptual loss')
         parser.add_argument('--t1_aid', type=self.str2bool, nargs='?', const=True, default=False, help='Whether to use T1s as supplementary information')
         parser.add_argument('--znorm', type=self.str2bool, nargs='?', const=True, default=True, help='Whether to use znorm')
         parser.add_argument('--upsampling_method', type=str, default="trilinear", help='Activation for G_A network: i.e. MRA -> Vasc.')
