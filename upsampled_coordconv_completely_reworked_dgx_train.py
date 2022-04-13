@@ -118,33 +118,48 @@ if __name__ == '__main__':
     # MS-SSIM
     if opt.msssim:
         gaussian_kernel_size = kernel_size_calculator(opt.patch_size)
+        # criterionMSSSIM = SSIM(data_range=45,
+        #                        gaussian_kernel_size=gaussian_kernel_size,
+        #                        gradient_based=True,
+        #                        star_based=False,
+        #                        gradient_masks_weights=None,
+        #                        input_range_correction="zero_bounded")
+        # criterionMSSSIM = SSIM(data_range=45,
+        #                        gaussian_kernel_size=gaussian_kernel_size,
+        #                        gradient_based=True,
+        #                        star_based=False,
+        #                        gradient_masks_weights=None,
+        #                        input_range_correction="zero_bounded")
         if opt.standard_msssim and not opt.znorm:
             criterionMSSSIM = SSIM(data_range=1.0,
                                    gaussian_kernel_size=gaussian_kernel_size,
                                    gradient_based=True,
                                    star_based=False,
-                                   gradient_masks_weights=None)
+                                   gradient_masks_weights=None,
+                                   input_range_correction="none")
         elif opt.standard_msssim and opt.znorm:
-            criterionMSSSIM = SSIM(data_range=40.0,  # z-norm images have higher max!
+            criterionMSSSIM = SSIM(data_range=45.0,  # z-norm images have higher max!
                                    gaussian_kernel_size=gaussian_kernel_size,
                                    gradient_based=True,
                                    star_based=False,
-                                   gradient_masks_weights=None)
+                                   gradient_masks_weights=None,
+                                   input_range_correction="zero_bounded")
         elif not opt.standard_msssim and not opt.znorm:
             criterionMSSSIM = SSIM(data_range=1.0,
                                    gaussian_kernel_size=gaussian_kernel_size,
                                    gradient_based=True,
                                    star_based=False,
                                    gradient_masks_weights=None,
-                                   multi_scale_weights=(0.8, 0.1, 0.05, 0.025, 0.025))
+                                   multi_scale_weights=(0.8, 0.1, 0.05, 0.025, 0.025),
+                                   input_range_correction="none")
         elif not opt.standard_msssim and opt.znorm:
-            criterionMSSSIM = SSIM(data_range=40.0,
+            criterionMSSSIM = SSIM(data_range=45.0,
                                    gaussian_kernel_size=gaussian_kernel_size,
                                    gradient_based=True,
                                    star_based=False,
                                    gradient_masks_weights=None,
-                                   multi_scale_weights=(0.8, 0.1, 0.05, 0.025, 0.025))
-
+                                   multi_scale_weights=(0.8, 0.1, 0.05, 0.025, 0.025),
+                                   input_range_correction="zero_bounded")
 
     def normalise_images(array):
         import numpy as np
@@ -1196,7 +1211,7 @@ if __name__ == '__main__':
 
                     if opt.t1_aid:
                         # Pass inputs to generators
-                        inf_real_T1 = inf_sample[0]['T1']
+                        inf_real_T1 = inf_sample['T1'].cuda()
                         fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), 160, 1,
                                                           G_A,
                                                           overlap=overlap,

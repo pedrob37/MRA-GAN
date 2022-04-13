@@ -1,10 +1,17 @@
 import warnings
 from typing import Tuple, Union
+from enum import Enum
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
+
+class InputRangeCorrection(Enum):
+    NONE = "none"
+    ZEROBOUNDED = "zero_bounded"
+    ZEROONE = "zero_one"
+    ZERO255 = "zero_255"
 
 class SSIM(torch.nn.Module):
     """
@@ -84,6 +91,7 @@ class SSIM(torch.nn.Module):
             Tuple[float, float, float], Tuple[float, float, float, float]
         ] = (0.25, 0.25, 0.25, 0.25),
         star_based: bool = True,
+        input_range_correction: str = "none"
     ):
         super(SSIM, self).__init__()
         self.spatial_dims = spatial_dims
@@ -141,6 +149,8 @@ class SSIM(torch.nn.Module):
             self._prepare_weight(torch.zeros(())),
             self._prepare_weight(torch.ones(())),
         )
+
+        self.input_range_correction = input_range_correction
 
     def _prepare_weight(self, kernel_weights: torch.Tensor) -> torch.Tensor:
         # TODO: Clean it up by using reshape
@@ -634,9 +644,33 @@ class SSIM(torch.nn.Module):
 
         return msssim
 
+    def correct_input_range(self, original_image, perturbed_image):
+        if self.input_range_correction in [
+            InputRangeCorrection.ZEROBOUNDED.value,
+            InputRangeCorrection.ZEROONE.value,
+            InputRangeCorrection.ZERO255.value
+        ]:
+            original_image -= original_image.min()
+            perturbed_image -= perturbed_image.min()
+
+        if self.input_range_correction in [
+            InputRangeCorrection.ZEROONE,
+            InputRangeCorrection.ZERO255
+        ]:
+            original_image /= original_image.max()
+            perturbed_image /= perturbed_image.max()
+
+        if self.input_range_correction == InputRangeCorrection.ZERO255:
+            original_image *= 255
+            perturbed_image *= 255
+
+        return original_image, perturbed_image
+
     def forward(self, original_image, perturbed_image):
         original_image = original_image.float()
         perturbed_image = perturbed_image.float()
+
+        original_image, perturbed_image = self.correct_input_range(original_image, perturbed_image)
 
         if self.multi_scale_weights is not None:
             metric = self._ms_ssim(original_image, perturbed_image)
