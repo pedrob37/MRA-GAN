@@ -650,8 +650,8 @@ class SSIM(torch.nn.Module):
             InputRangeCorrection.ZEROONE.value,
             InputRangeCorrection.ZERO255.value
         ]:
-            original_image -= original_image.min()
-            perturbed_image -= perturbed_image.min()
+            original_image = original_image - original_image.min()
+            perturbed_image = perturbed_image - perturbed_image.min()
 
         if self.input_range_correction in [
             InputRangeCorrection.ZEROONE,
