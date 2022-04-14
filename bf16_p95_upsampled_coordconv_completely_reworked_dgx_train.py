@@ -44,7 +44,7 @@ if __name__ == '__main__':
         auto_mpi_discovery=True,
         verbose=False,
         init_method=None,
-        distributed_port=opt.master_port_id,
+        distributed_port=29500,
     )
 
     # DDP variables: global rank, local rank, number of processes
@@ -72,30 +72,30 @@ if __name__ == '__main__':
     cycled_ranks = cycle(list(range(world_size)))
 
     # Model choice: Trilinear, nearest neighbour, or nearest neighbour + subpixel convolution
-    if rank == 0:
-        if opt.upsampling_method == 'nearest':
-            from models.model_nn_upsamps_norm import nnUNet
-            print("Using nearest neighbour interpolation for upsampling!")
-        elif opt.upsampling_method == 'exp-nearest':
-            from models.extended_model_nn_upsamps_norm import nnUNet
-            print("Using Expanded nearest neighbour interpolation for upsampling!")
-        elif opt.upsampling_method == 'trilinear':
-            from models.model_upsamps_norm import nnUNet
-            print("Using trilinear interpolation for upsampling!")
-        elif opt.upsampling_method == 'subpixel':
-            from models.model_subpixel_upsamps_norm import nnUNet
-            print("Using nearest neighbour interpolation + subpixel convolution for upsampling!")
-        elif opt.upsampling_method == "trans":
-            from models.model_transconvs_norm import nnUNet
-            print("Using transposed convolutions for upsampling!")
-        elif opt.upsampling_method == "even-trans":
-            from models.model_even_transconvs_norm import nnUNet
-            print("Using even transposed convolutions for upsampling!")
-        elif opt.upsampling_method == "exp-trans":
-            from models.extended_model_transconvs_norm import nnUNet
-            print("Using Expanded transposed convolutions for upsampling!")
-        else:
-            raise SyntaxError("Missing upsampling method parameter!")
+    # if rank == 0:
+    if opt.upsampling_method == 'nearest':
+        from models.model_nn_upsamps_norm import nnUNet
+        print("Using nearest neighbour interpolation for upsampling!")
+    elif opt.upsampling_method == 'exp-nearest':
+        from models.extended_model_nn_upsamps_norm import nnUNet
+        print("Using Expanded nearest neighbour interpolation for upsampling!")
+    elif opt.upsampling_method == 'trilinear':
+        from models.model_upsamps_norm import nnUNet
+        print("Using trilinear interpolation for upsampling!")
+    elif opt.upsampling_method == 'subpixel':
+        from models.model_subpixel_upsamps_norm import nnUNet
+        print("Using nearest neighbour interpolation + subpixel convolution for upsampling!")
+    elif opt.upsampling_method == "trans":
+        from models.model_transconvs_norm import nnUNet
+        print("Using transposed convolutions for upsampling!")
+    elif opt.upsampling_method == "even-trans":
+        from models.model_even_transconvs_norm import nnUNet
+        print("Using even transposed convolutions for upsampling!")
+    elif opt.upsampling_method == "exp-trans":
+        from models.extended_model_transconvs_norm import nnUNet
+        print("Using Expanded transposed convolutions for upsampling!")
+    else:
+        raise SyntaxError("Missing upsampling method parameter!")
 
     ### MONAI
     # Data directory
@@ -136,10 +136,36 @@ if __name__ == '__main__':
     # MS-SSIM
     if opt.msssim:
         gaussian_kernel_size = kernel_size_calculator(opt.patch_size)
-        criterionMSSSIM = SSIM(data_range=1.0,
-                               gaussian_kernel_size=gaussian_kernel_size,
-                               gradient_based=True,
-                               star_based=False)
+        if opt.standard_msssim and not opt.znorm:
+            criterionMSSSIM = SSIM(data_range=1.0,
+                                   gaussian_kernel_size=gaussian_kernel_size,
+                                   gradient_based=True,
+                                   star_based=False,
+                                   gradient_masks_weights=None,
+                                   input_range_correction=opt.range_correction)
+        elif opt.standard_msssim and opt.znorm:
+            criterionMSSSIM = SSIM(data_range=opt.data_range,  # z-norm images have higher max!
+                                   gaussian_kernel_size=gaussian_kernel_size,
+                                   gradient_based=True,
+                                   star_based=False,
+                                   gradient_masks_weights=None,
+                                   input_range_correction=opt.range_correction)
+        elif not opt.standard_msssim and not opt.znorm:
+            criterionMSSSIM = SSIM(data_range=1.0,
+                                   gaussian_kernel_size=gaussian_kernel_size,
+                                   gradient_based=True,
+                                   star_based=False,
+                                   gradient_masks_weights=None,
+                                   multi_scale_weights=(0.8, 0.1, 0.05, 0.025, 0.025),
+                                   input_range_correction=opt.range_correction)
+        elif not opt.standard_msssim and opt.znorm:
+            criterionMSSSIM = SSIM(data_range=opt.data_range,
+                                   gaussian_kernel_size=gaussian_kernel_size,
+                                   gradient_based=True,
+                                   star_based=False,
+                                   gradient_masks_weights=None,
+                                   multi_scale_weights=(0.8, 0.1, 0.05, 0.025, 0.025),
+                                   input_range_correction=opt.range_correction)
 
     def normalise_images(array):
         import numpy as np
