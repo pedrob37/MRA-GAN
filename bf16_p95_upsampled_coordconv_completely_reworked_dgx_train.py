@@ -130,8 +130,8 @@ if __name__ == '__main__':
                                             )
 
     # Other cycle/ idt losses
-    criterionCycle = torch.nn.L1Loss().to(dtype=torch.bfloat16)
-    criterionIdt = torch.nn.L1Loss().to(dtype=torch.bfloat16)
+    criterionCycle = torch.nn.L1Loss()  # .to(dtype=torch.bfloat16)
+    criterionIdt = torch.nn.L1Loss()  # .to(dtype=torch.bfloat16)
 
     # MS-SSIM
     if opt.msssim:
@@ -420,28 +420,28 @@ if __name__ == '__main__':
             device_ids=[local_rank],
             broadcast_buffers=False,
             bucket_cap_mb=12.5,
-        ).to(dtype=torch.bfloat16)
+        )  # .to(dtype=torch.bfloat16)
 
         G_B = torch.nn.parallel.DistributedDataParallel(
             G_B,
             device_ids=[local_rank],
             broadcast_buffers=False,
             bucket_cap_mb=12.5,
-        ).to(dtype=torch.bfloat16)
+        )  # .to(dtype=torch.bfloat16)
 
         D_A = torch.nn.parallel.DistributedDataParallel(
             D_A,
             device_ids=[local_rank],
             broadcast_buffers=False,
             bucket_cap_mb=12.5,
-        ).to(dtype=torch.bfloat16)
+        )  # .to(dtype=torch.bfloat16)
 
         D_B = torch.nn.parallel.DistributedDataParallel(
             D_B,
             device_ids=[local_rank],
             broadcast_buffers=False,
             bucket_cap_mb=12.5,
-        ).to(dtype=torch.bfloat16)
+        )  # .to(dtype=torch.bfloat16)
 
         # Optimizers + schedulers
         import itertools

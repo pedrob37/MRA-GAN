@@ -138,7 +138,7 @@ if __name__ == '__main__':
                                    gradient_masks_weights=None,
                                    input_range_correction=opt.range_correction)
         elif opt.standard_msssim and opt.znorm:
-            criterionMSSSIM = SSIM(data_range=45.0,  # z-norm images have higher max!
+            criterionMSSSIM = SSIM(data_range=opt.data_range,  # z-norm images have higher max!
                                    gaussian_kernel_size=gaussian_kernel_size,
                                    gradient_based=True,
                                    star_based=False,
@@ -153,7 +153,7 @@ if __name__ == '__main__':
                                    multi_scale_weights=(0.8, 0.1, 0.05, 0.025, 0.025),
                                    input_range_correction=opt.range_correction)
         elif not opt.standard_msssim and opt.znorm:
-            criterionMSSSIM = SSIM(data_range=45.0,
+            criterionMSSSIM = SSIM(data_range=opt.data_range,
                                    gaussian_kernel_size=gaussian_kernel_size,
                                    gradient_based=True,
                                    star_based=False,

@@ -35,6 +35,7 @@ class TrainOptions(BaseOptions):
         #parser.add_argument('--niter_decay', type=int, default=200, help='# of iter to linearly decay learning rate to zero')
         parser.add_argument('--niter_decay', type=int, default=100, help='# of iter to linearly decay learning rate to zero')
         parser.add_argument('--gen_beta1', type=float, default=0.5, help='Generator momentum term of adam')
+        parser.add_argument('--data_range', type=float, default=20.0, help='Data range for MS-SSIM loss')
         parser.add_argument('--disc_beta1', type=float, default=0.5, help='Discriminator momentum term of adam')
         parser.add_argument('--gen_lr', type=float, default=0.0002, help='Generator initial learning rate for adam')
         parser.add_argument('--disc_lr', type=float, default=0.0002, help='Discriminator initial learning rate for adam')
