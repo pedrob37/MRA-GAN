@@ -136,14 +136,14 @@ if __name__ == '__main__':
                                    gradient_based=True,
                                    star_based=False,
                                    gradient_masks_weights=None,
-                                   input_range_correction="none")
+                                   input_range_correction=opt.range_correction)
         elif opt.standard_msssim and opt.znorm:
             criterionMSSSIM = SSIM(data_range=45.0,  # z-norm images have higher max!
                                    gaussian_kernel_size=gaussian_kernel_size,
                                    gradient_based=True,
                                    star_based=False,
                                    gradient_masks_weights=None,
-                                   input_range_correction="zero_bounded")
+                                   input_range_correction=opt.range_correction)
         elif not opt.standard_msssim and not opt.znorm:
             criterionMSSSIM = SSIM(data_range=1.0,
                                    gaussian_kernel_size=gaussian_kernel_size,
@@ -151,7 +151,7 @@ if __name__ == '__main__':
                                    star_based=False,
                                    gradient_masks_weights=None,
                                    multi_scale_weights=(0.8, 0.1, 0.05, 0.025, 0.025),
-                                   input_range_correction="none")
+                                   input_range_correction=opt.range_correction)
         elif not opt.standard_msssim and opt.znorm:
             criterionMSSSIM = SSIM(data_range=45.0,
                                    gaussian_kernel_size=gaussian_kernel_size,
@@ -159,7 +159,7 @@ if __name__ == '__main__':
                                    star_based=False,
                                    gradient_masks_weights=None,
                                    multi_scale_weights=(0.8, 0.1, 0.05, 0.025, 0.025),
-                                   input_range_correction="zero_bounded")
+                                   input_range_correction=opt.range_correction)
 
     def normalise_images(array):
         import numpy as np
