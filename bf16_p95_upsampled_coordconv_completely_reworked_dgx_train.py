@@ -424,7 +424,7 @@ if __name__ == '__main__':
             import lpips
             perceptual_net = lpips.LPIPS(pretrained=True, net='squeeze')
             # if torch.cuda.device_count() > 1:
-            perceptual_net = torch.nn.DataParallel(perceptual_net)
+            perceptual_net = perceptual_net.to(device)
         # Discriminators
         D_A = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
                                              opt.n_layers_D,
@@ -559,7 +559,13 @@ if __name__ == '__main__':
             loaded_epoch = 0
 
         if opt.perceptual:
-            perceptual_net = perceptual_net.to(device, non_blocking=True)
+            # perceptual_net = perceptual_net.to(device, non_blocking=True)
+            perceptual_net = torch.nn.parallel.DistributedDataParallel(
+                perceptual_net,
+                device_ids=[local_rank],
+                broadcast_buffers=False,
+                bucket_cap_mb=12.5,
+            )  # .to(dtype=torch.bfloat16)
 
         # Train / Val split
         val_fold = fold
