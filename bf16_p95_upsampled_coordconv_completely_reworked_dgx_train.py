@@ -559,7 +559,7 @@ if __name__ == '__main__':
             loaded_epoch = 0
 
         if opt.perceptual:
-            perceptual_net = perceptual_net.cuda()
+            perceptual_net = perceptual_net.to(device, non_blocking=True)
 
         # Train / Val split
         val_fold = fold
@@ -658,9 +658,9 @@ if __name__ == '__main__':
                     epoch_iter += opt.batch_size
 
                     # Iteration-specific data
-                    real_A = train_sample[0]['image'].cuda()
-                    real_B = train_sample[0]['label'].cuda()
-                    train_coords = train_sample[0]['coords'].cuda()
+                    real_A = train_sample[0]['image'].to(device, non_blocking=True)
+                    real_B = train_sample[0]['label'].to(device, non_blocking=True)
+                    train_coords = train_sample[0]['coords'].to(device, non_blocking=True)
 
                     # Names (Not needed for now)
                     image_name = os.path.basename(train_sample[0]["image_meta_dict"]["filename_or_obj"][0])
@@ -801,10 +801,10 @@ if __name__ == '__main__':
                             torch.save(current_state_dict, os.path.join(MODELS_DIR,
                                                                         save_filename))
 
-                            G_A.cuda()
-                            G_B.cuda()
-                            D_A.cuda()
-                            D_B.cuda()
+                            G_A.to(device, non_blocking=True)
+                            G_B.to(device, non_blocking=True)
+                            D_A.to(device, non_blocking=True)
+                            D_B.to(device, non_blocking=True)
 
                         # Logging: Only on a single GPU
                         if total_steps % 250 == 0:
@@ -887,9 +887,9 @@ if __name__ == '__main__':
                     with torch.no_grad():
                         for val_sample in val_loader:
                             # Validation variables
-                            val_real_A = val_sample[0]['image'].cuda()
-                            val_real_B = val_sample[0]['label'].cuda()
-                            val_coords = val_sample[0]['coords'].cuda()
+                            val_real_A = val_sample[0]['image'].to(device, non_blocking=True)
+                            val_real_B = val_sample[0]['label'].to(device, non_blocking=True)
+                            val_coords = val_sample[0]['coords'].to(device, non_blocking=True)
 
                             image_name = os.path.basename(val_sample[0]["image_meta_dict"]["filename_or_obj"][0])
                             label_name = os.path.basename(val_sample[0]["label_meta_dict"]["filename_or_obj"][0])
@@ -998,10 +998,10 @@ if __name__ == '__main__':
                             torch.save(current_state_dict, os.path.join(MODELS_DIR,
                                                                         save_filename))
 
-                            G_A.cuda()
-                            G_B.cuda()
-                            D_A.cuda()
-                            D_B.cuda()
+                            G_A.to(device, non_blocking=True)
+                            G_B.to(device, non_blocking=True)
+                            D_A.to(device, non_blocking=True)
+                            D_B.to(device, non_blocking=True)
 
                             # Images
                             # Reals
@@ -1055,9 +1055,9 @@ if __name__ == '__main__':
             G_B.eval()
             with torch.no_grad():
                 for inf_sample in inf_loader:
-                    inf_real_A = inf_sample['image'].cuda()
-                    inf_real_B = inf_sample['label'].cuda()
-                    inf_coords = inf_sample['coords'].cuda()
+                    inf_real_A = inf_sample['image'].to(device, non_blocking=True)
+                    inf_real_B = inf_sample['label'].to(device, non_blocking=True)
+                    inf_coords = inf_sample['coords'].to(device, non_blocking=True)
 
                     image_name = os.path.basename(inf_sample["image_meta_dict"]["filename_or_obj"][0])
                     label_name = os.path.basename(inf_sample["label_meta_dict"]["filename_or_obj"][0])
