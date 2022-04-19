@@ -649,3 +649,10 @@ def kernel_size_calculator(patch_size):
         if win_size % 2 == 0:
             win_size += 1
     return win_size
+
+
+def basename_extractor(full_file_path, keep_extension=True):
+    extracted_filename = os.path.basename(full_file_path)
+    if not keep_extension:
+        extracted_filename = extracted_filename.split('.')[0]
+    return extracted_filename

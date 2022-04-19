@@ -403,6 +403,7 @@ if __name__ == '__main__':
     elif opt.phase == "test":
         # Inference
         from monai.inferers import sliding_window_inference
+        from utils.utils import basename_extractor
         if opt.t1_aid:
             inf_transform_list = [LoadImaged(keys=['image', 'label', 'T1']),
                                   AddChanneld(keys=['image', 'label', 'T1']),
@@ -1212,6 +1213,7 @@ if __name__ == '__main__':
                     if opt.t1_aid:
                         # Pass inputs to generators
                         inf_real_T1 = inf_sample['T1'].cuda()
+                        t1_name = os.path.basename(inf_sample["T1_meta_dict"]["filename_or_obj"][0])
                         fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), 160, 1,
                                                           G_A,
                                                           overlap=overlap,
@@ -1250,19 +1252,25 @@ if __name__ == '__main__':
                     del inf_real_A, inf_real_B, inf_sample, inf_coords
                     if opt.t1_aid:
                         del inf_real_T1
+                        # Need to know which T1 was used for generation!
+                        fake_image_basename = f"Vasc_{basename_extractor(label_name, keep_extension=False)}_" \
+                                              f"T1_{basename_extractor(t1_name, keep_extension=True)}"
+                    else:
+                        fake_image_basename = f"Vasc_{basename_extractor(label_name, keep_extension=False)}"
+                    fake_vasc_basename = f"Image_{basename_extractor(image_name, keep_extension=False)}"
 
                     # Saving: Fakes
                     save_img(normalise_images(fake_A.cpu().detach().squeeze().numpy()),
                              inf_affine,
-                             os.path.join(FIG_DIR, "Fake_A_" + os.path.basename(label_name)))
+                             os.path.join(FIG_DIR, "Fake_A_" + fake_image_basename))  # MRA
                     save_img(normalise_images(fake_B.cpu().detach().squeeze().numpy()),
                              inf_affine,
-                             os.path.join(FIG_DIR, "Fake_B_" + os.path.basename(image_name)))
+                             os.path.join(FIG_DIR, "Fake_B_" + fake_vasc_basename))
 
                     # Saving: Reconstructions
-                    save_img(normalise_images(rec_A.cpu().detach().squeeze().numpy()),
-                             inf_affine,
-                             os.path.join(FIG_DIR, "Rec_A_" + os.path.basename(image_name)))
-                    save_img(normalise_images(rec_B.cpu().detach().squeeze().numpy()),
-                             inf_affine,
-                             os.path.join(FIG_DIR, "Rec_B_" + os.path.basename(label_name)))
+                    # save_img(normalise_images(rec_A.cpu().detach().squeeze().numpy()),
+                    #          inf_affine,
+                    #          os.path.join(FIG_DIR, "Rec_A_" + os.path.basename(image_name)))
+                    # save_img(normalise_images(rec_B.cpu().detach().squeeze().numpy()),
+                    #          inf_affine,
+                    #          os.path.join(FIG_DIR, "Rec_B_" + os.path.basename(label_name)))
