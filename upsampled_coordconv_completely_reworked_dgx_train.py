@@ -533,25 +533,6 @@ if __name__ == '__main__':
         num_files = len(file_list)
         print(f'The number of files is {num_files}')
 
-        # if num_files > 0 and LOAD:
-        #     import glob
-        #     # total_steps = model.load_networks('latest', models_dir=MODELS_DIR, phase=opt.phase)
-        #     model_files = glob.glob(os.path.join(MODELS_DIR, '*.pth'))
-        #     for some_model_file in model_files:
-        #         print(some_model_file)
-        #     sorted_model_files = sorted(model_files, key=os.path.getmtime)
-        #     # Allows inference to be run on nth latest file!
-        #     latest_model_file = sorted_model_files[-1]
-        #     checkpoint = torch.load(latest_model_file, map_location=torch.device(device))
-        #     print(f'Loading {latest_model_file}!')
-        #     loaded_epoch = checkpoint['epoch']
-        #     running_iter = checkpoint['running_iter']
-        #     total_steps = checkpoint['total_steps']
-        # else:
-        #     total_steps = 0
-        #     running_iter = 0
-        #     loaded_epoch = 0
-
         if LOAD and num_files > 0 and opt.phase != 'inference':
             # Find latest model
             import glob
@@ -654,6 +635,7 @@ if __name__ == '__main__':
         writer = SummaryWriter(log_dir=os.path.join(LOG_DIR, f'fold_{fold}'))
 
         # Print sizes
+        logging_interval = int(len(train_df)/2)
         print(f'The length of the training is {len(train_df)}')
         print(f'The length of the validation is {len(val_df)}')
         print(f'The length of the inference is {len(inf_df)}')
@@ -924,7 +906,7 @@ if __name__ == '__main__':
                         D_A.cuda()
                         D_B.cuda()
 
-                    if total_steps % 250 == 0:
+                    if total_steps % logging_interval == 0:
                         # Graphs
                         loss_adv_dict = {"Total_G_loss": total_G_loss,
                                          "Generator_A": G_A_loss,
@@ -1257,7 +1239,7 @@ if __name__ == '__main__':
                                               f"T1_{basename_extractor(t1_name, keep_extension=True)}"
                     else:
                         fake_image_basename = f"Vasc_{basename_extractor(label_name, keep_extension=False)}"
-                    fake_vasc_basename = f"Image_{basename_extractor(image_name, keep_extension=False)}"
+                    fake_vasc_basename = f"Image_{basename_extractor(image_name, keep_extension=True)}"
 
                     # Saving: Fakes
                     save_img(normalise_images(fake_A.cpu().detach().squeeze().numpy()),
