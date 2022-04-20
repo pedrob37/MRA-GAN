@@ -1,11 +1,13 @@
 import os
+import random
+
 import torch
 from torch.utils.data import DataLoader
 from options.train_options import TrainOptions
 import time
 from models import create_model
 from utils.visualizer import Visualizer
-from utils.utils import create_path, save_img, CoordConvd, kernel_size_calculator
+from utils.utils import create_path, save_img, CoordConvd, kernel_size_calculator, create_folds
 import monai
 import pandas as pd
 import numpy as np
@@ -13,6 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 import torch.nn as nn
 from models.pix2pix_disc_networks import NoisyMultiscaleDiscriminator3D, GANLoss
 import monai.visualize.img2tensorboard as img2tensorboard
+from itertools import cycle
 from models.resnets import resnet10
 from monai.transforms import (Compose,
                               LoadImaged,
@@ -78,23 +81,26 @@ if __name__ == '__main__':
         t1s_dir = os.path.join(opt.data_path, 'T1s')  # T1s!
 
     # Read csv + add directory to filenames
-    df = pd.read_csv(opt.csv_file)
-    df['Label_Filename'] = df['Filename']
-    if opt.t1_aid:
-        df['T1'] = df['Filename']
-        df['T1'] = t1s_dir + '/' + df['Filename'].astype(str)
+    if opt.use_csv:
+        df = pd.read_csv(opt.csv_file)
+        df['Label_Filename'] = df['Filename']
+        if opt.t1_aid:
+            df['T1'] = df['Filename']
+            df['T1'] = t1s_dir + '/' + df['Filename'].astype(str)
+            # Shuffling
+            df['T1'] = df['T1'].sample(frac=1).values
+        df['Filename'] = images_dir + '/' + df['Filename'].astype(str)
+        df['Label_Filename'] = labels_dir + '/' + df['Label_Filename'].astype(str)
         # Shuffling
-        df['T1'] = df['T1'].sample(frac=1).values
-    df['Filename'] = images_dir + '/' + df['Filename'].astype(str)
-    df['Label_Filename'] = labels_dir + '/' + df['Label_Filename'].astype(str)
-    # Shuffling
-    df['Label_Filename'] = df['Label_Filename'].sample(frac=1).values
-    num_folds = df.fold.nunique()
+        df['Label_Filename'] = df['Label_Filename'].sample(frac=1).values
+        num_folds = df.fold.nunique()
 
-    # Inference fold assignment
-    inf_fold = 9
-    inf_df = df[df.fold == inf_fold]
-    inf_df.reset_index(drop=True, inplace=True)
+        # Inference fold assignment
+        inf_fold = 9
+        inf_df = df[df.fold == inf_fold]
+        inf_df.reset_index(drop=True, inplace=True)
+    else:
+        num_folds = 1
 
     # Check real label
     print(f"The target real label is {opt.real_label}")
@@ -460,15 +466,9 @@ if __name__ == '__main__':
     LOAD = True
 
     # Folds
-    for fold in range(10):
+    for fold in range(num_folds):
         # Define models and associated variables
         print('\nFOLD', fold)
-        # Pre-loading sequence: Two out channels correspond to number of classes
-        # In channels: 1 for standard, 4 for coordconv!
-        # betas = (0.5,
-        #          0.999)  # Consider 0.5 for beta1! https://machinelearningmastery.com/how-to-train-stable-generative-adversarial-networks/
-        # betas_disc = (0.5,
-        #               0.999)  # Consider 0.5 for beta1! https://machinelearningmastery.com/how-to-train-stable-generative-adversarial-networks/
         # Generators
         if opt.final_act == "leaky":
             G_A_final_act = torch.nn.LeakyReLU()
@@ -508,24 +508,10 @@ if __name__ == '__main__':
                                        lr=opt.gen_lr, betas=(0.5, 0.999))
         D_optimizer = torch.optim.Adam(itertools.chain(D_A.parameters(), D_B.parameters()),
                                        lr=opt.disc_lr, betas=(0.5, 0.999))
-        # G_A_optimizer = torch.optim.Adam(G_A.parameters(), lr=0.0001, betas=betas)
-        # G_B_optimizer = torch.optim.Adam(G_B.parameters(), lr=0.0001, betas=betas)
-        # D_A_optimizer = torch.optim.Adam(D_A.parameters(), lr=0.000025, betas=betas_disc)
-        # D_B_optimizer = torch.optim.Adam(D_B.parameters(), lr=0.000025, betas=betas_disc)
 
         # Domain A
         G_scheduler = torch.optim.lr_scheduler.ExponentialLR(G_optimizer, 0.995)
         D_scheduler = torch.optim.lr_scheduler.ExponentialLR(D_optimizer, 0.995)
-        # G_A_scheduler = torch.optim.lr_scheduler.ExponentialLR(G_A_optimizer, 0.99)
-        # D_A_scheduler = torch.optim.lr_scheduler.ExponentialLR(D_A_optimizer, 0.99)
-        # G_A_scaler = torch.cuda.amp.GradScaler()
-        # D_A_scaler = torch.cuda.amp.GradScaler()
-
-        # Domain B
-        # G_B_scheduler = torch.optim.lr_scheduler.ExponentialLR(G_B_optimizer, 0.99)
-        # D_B_scheduler = torch.optim.lr_scheduler.ExponentialLR(D_B_optimizer, 0.99)
-        # G_B_scaler = torch.cuda.amp.GradScaler()
-        # D_B_scaler = torch.cuda.amp.GradScaler()
 
         # Loading
         # Model loading
@@ -623,42 +609,92 @@ if __name__ == '__main__':
         if opt.perceptual:
             perceptual_net = perceptual_net.cuda()
 
-        # Train / Val split
-        val_fold = fold
-        excluded_folds = [val_fold, inf_fold]
-        train_df = df[~df.fold.isin(excluded_folds)]
-        val_df = df[df.fold == val_fold]
-        train_df.reset_index(drop=True, inplace=True)
-        val_df.reset_index(drop=True, inplace=True)
-
         # Writer
         writer = SummaryWriter(log_dir=os.path.join(LOG_DIR, f'fold_{fold}'))
 
-        # Print sizes
-        logging_interval = int(len(train_df)/2)
-        print(f'The length of the training is {len(train_df)}')
-        print(f'The length of the validation is {len(val_df)}')
-        print(f'The length of the inference is {len(inf_df)}')
+        if opt.use_csv:
+            # Train / Val split
+            val_fold = fold
+            excluded_folds = [val_fold, inf_fold]
+            train_df = df[~df.fold.isin(excluded_folds)]
+            val_df = df[df.fold == val_fold]
+            train_df.reset_index(drop=True, inplace=True)
+            val_df.reset_index(drop=True, inplace=True)
 
-        # Data dicts
-        if opt.t1_aid:
-            train_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
-                               in zip(train_df.Filename, train_df.Label_Filename, train_df.T1)]
-            val_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
-                             in zip(val_df.Filename, val_df.Label_Filename, val_df.T1)]
-            inf_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
-                             in zip(inf_df.Filename, inf_df.Label_Filename, inf_df.T1)]
-        else:
-            train_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
-                               in zip(train_df.Filename, train_df.Label_Filename)]
-            val_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
-                             in zip(val_df.Filename, val_df.Label_Filename)]
-            inf_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
-                             in zip(inf_df.Filename, inf_df.Label_Filename)]
+            # Print sizes
+            logging_interval = int(len(train_df)/2)
+            print(f'The length of the training is {len(train_df)}')
+            print(f'The length of the validation is {len(val_df)}')
+            print(f'The length of the inference is {len(inf_df)}')
 
-        # Basic length checks
-        assert len(train_df.Filename) == len(train_df.Label_Filename)
-        assert len(val_df.Filename) == len(val_df.Label_Filename)
+            # Data dicts
+            if opt.t1_aid:
+                train_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
+                                   in zip(train_df.Filename, train_df.Label_Filename, train_df.T1)]
+                val_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
+                                 in zip(val_df.Filename, val_df.Label_Filename, val_df.T1)]
+                inf_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
+                                 in zip(inf_df.Filename, inf_df.Label_Filename, inf_df.T1)]
+            else:
+                train_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
+                                   in zip(train_df.Filename, train_df.Label_Filename)]
+                val_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
+                                 in zip(val_df.Filename, val_df.Label_Filename)]
+                inf_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
+                                 in zip(inf_df.Filename, inf_df.Label_Filename)]
+
+            # Basic length checks
+            assert len(train_df.Filename) == len(train_df.Label_Filename)
+            assert len(val_df.Filename) == len(val_df.Label_Filename)
+
+        elif not opt.use_csv:
+            full_images = sorted(glob.glob(os.path.join(images_dir, "*.nii.gz")))
+            full_labels = sorted(glob.glob(os.path.join(labels_dir, "*.nii.gz")))
+            full_t1s = sorted(glob.glob(os.path.join(t1s_dir, "*.nii.gz")))
+
+            # Splits: Random NON-GLOBAL shuffle:
+            # https://stackoverflow.com/questions/19306976/python-shuffling-with-a-parameter-to-get-the-same-result
+            random.Random(1).shuffle(full_images)
+            random.Random(1).shuffle(full_labels)
+            random.Random(1).shuffle(full_t1s)
+
+            train_images, val_images, inf_images = create_folds(full_images, train_split=0.8, val_split=0.1)
+            train_labels, val_labels, inf_labels = create_folds(full_labels, train_split=0.8, val_split=0.1)
+            train_t1s, val_t1s, inf_t1s = create_folds(full_t1s, train_split=0.8, val_split=0.1)
+
+            # Re-shuffle
+            random.Random(2).shuffle(train_images)
+            random.Random(3).shuffle(train_labels)
+            random.Random(4).shuffle(train_t1s)
+            
+            random.Random(5).shuffle(val_images)
+            random.Random(6).shuffle(val_labels)
+            random.Random(7).shuffle(val_t1s)
+            
+            random.Random(8).shuffle(inf_images)
+            random.Random(9).shuffle(inf_labels)
+            random.Random(10).shuffle(inf_t1s)
+            
+            if opt.t1_aid:
+                train_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
+                                   in zip(cycle(train_images), train_labels, cycle(train_t1s))]
+                val_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
+                                 in zip(cycle(val_images), val_labels, cycle(val_t1s))]
+                inf_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
+                                 in zip(cycle(inf_images), inf_labels, cycle(inf_t1s))]
+            else:
+                train_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
+                                   in zip(cycle(train_images), train_labels)]
+                val_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
+                                 in zip(cycle(val_images), val_labels)]
+                inf_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
+                                 in zip(cycle(inf_images), inf_labels)]
+
+            # Print sizes
+            logging_interval = int(len(train_images)/2)
+            print(f'The length of the training is {len(train_images)}')
+            print(f'The length of the validation is {len(val_images)}')
+            print(f'The length of the inference is {len(inf_images)}')
 
         if opt.phase == "train":
             # Training + validation loaders
