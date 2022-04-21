@@ -167,6 +167,7 @@ if __name__ == '__main__':
                                    multi_scale_weights=(0.8, 0.1, 0.05, 0.025, 0.025),
                                    input_range_correction=opt.range_correction)
 
+
     def normalise_images(array):
         import numpy as np
         return (array - np.min(array)) / (np.max(array) - np.min(array))
@@ -194,23 +195,27 @@ if __name__ == '__main__':
             0, ...].nelement()
         fake_disc_sum_ds1 = fake_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[0][0][
             0, ...].nelement()
-        # real_disc_sum_ds2 = real_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[1][0][
-        #     0, ...].nelement()
-        # fake_disc_sum_ds2 = fake_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[1][0][
-        #     0, ...].nelement()
 
         real_disc_accuracy_ds1 = ((real_disc_sum_ds1 > 0.5) == real_label).float().sum() / real_images.shape[0]
         fake_disc_accuracy_ds1 = ((fake_disc_sum_ds1 > 0.5) == fake_label).float().sum() / real_images.shape[0]
-        # real_disc_accuracy_ds2 = ((real_disc_sum_ds2 > 0.5) == real_label).float().sum() / real_images.shape[0]
-        # fake_disc_accuracy_ds2 = ((fake_disc_sum_ds2 > 0.5) == fake_label).float().sum() / real_images.shape[0]
+        if opt.n_D == 2:
+            real_disc_sum_ds2 = real_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[1][0][
+                0, ...].nelement()
+            fake_disc_sum_ds2 = fake_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[1][0][
+                0, ...].nelement()
+            real_disc_accuracy_ds2 = ((real_disc_sum_ds2 > 0.5) == real_label).float().sum() / real_images.shape[0]
+            fake_disc_accuracy_ds2 = ((fake_disc_sum_ds2 > 0.5) == fake_label).float().sum() / real_images.shape[0]
 
-        # (real_disc_accuracy_ds1 + real_disc_accuracy_ds2) / 2, \
-        # (fake_disc_accuracy_ds1 + fake_disc_accuracy_ds2) / 2, \
+            real_disc_accuracy = (real_disc_accuracy_ds1 + real_disc_accuracy_ds2) / 2
+            fake_disc_accuracy = (fake_disc_accuracy_ds1 + fake_disc_accuracy_ds2) / 2
+        elif opt.n_D == 1:
+            real_disc_accuracy = real_disc_accuracy_ds1
+            fake_disc_accuracy = fake_disc_accuracy_ds1
 
         return (genloss + realloss) / 2, \
-               real_disc_accuracy_ds1, \
-               fake_disc_accuracy_ds1, \
-               real_disc_prediction, fake_disc_prediction
+            real_disc_accuracy, \
+            fake_disc_accuracy, \
+            real_disc_prediction, fake_disc_prediction
 
 
     def perceptual_loss(real_images, rec_images, network_choice, num_slices):
@@ -315,7 +320,7 @@ if __name__ == '__main__':
                                         RandGaussianNoiseD(keys=["image"], std=0.2, prob=0.5),
                                         RandSpatialCropSamplesd(keys=["image", "label", "coords"],
                                                                 roi_size=(
-                                                                opt.patch_size, opt.patch_size, opt.patch_size),
+                                                                    opt.patch_size, opt.patch_size, opt.patch_size),
                                                                 random_center=True,
                                                                 random_size=False,
                                                                 num_samples=1),
@@ -354,7 +359,7 @@ if __name__ == '__main__':
                                         NormalizeIntensityd(keys=['image'], channel_wise=True),
                                         RandSpatialCropSamplesd(keys=["image", "label", "coords"],
                                                                 roi_size=(
-                                                                opt.patch_size, opt.patch_size, opt.patch_size),
+                                                                    opt.patch_size, opt.patch_size, opt.patch_size),
                                                                 random_center=True,
                                                                 random_size=False,
                                                                 num_samples=1),
@@ -377,26 +382,30 @@ if __name__ == '__main__':
         # Extend remaining transforms
         if opt.t1_aid:
             train_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords", 'T1'],
-                                                                 roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                                 roi_size=(
+                                                                     opt.patch_size, opt.patch_size, opt.patch_size),
                                                                  random_center=True,
                                                                  random_size=False,
                                                                  num_samples=1),
                                          ToTensord(keys=['image', 'label', 'coords', 'T1'])])
             val_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords", 'T1'],
-                                                               roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                               roi_size=(
+                                                                   opt.patch_size, opt.patch_size, opt.patch_size),
                                                                random_center=True,
                                                                random_size=False,
                                                                num_samples=1),
                                        ToTensord(keys=['image', 'label', 'coords', 'T1'])])
         else:
             train_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                                                 roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                                 roi_size=(
+                                                                     opt.patch_size, opt.patch_size, opt.patch_size),
                                                                  random_center=True,
                                                                  random_size=False,
                                                                  num_samples=1),
                                          ToTensord(keys=['image', 'label', 'coords'])])
             val_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                                               roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
+                                                               roi_size=(
+                                                                   opt.patch_size, opt.patch_size, opt.patch_size),
                                                                random_center=True,
                                                                random_size=False,
                                                                num_samples=1),
@@ -410,6 +419,7 @@ if __name__ == '__main__':
         # Inference
         from monai.inferers import sliding_window_inference
         from utils.utils import basename_extractor
+
         if opt.t1_aid:
             inf_transform_list = [LoadImaged(keys=['image', 'label', 'T1']),
                                   AddChanneld(keys=['image', 'label', 'T1']),
@@ -500,6 +510,17 @@ if __name__ == '__main__':
         G_B = nn.DataParallel(G_B)
         D_A = nn.DataParallel(D_A)
         D_B = nn.DataParallel(D_B)
+
+        # Parameter counts
+        G_A_total_params = sum(p.numel() for p in G_A.parameters())
+        G_B_total_params = sum(p.numel() for p in G_B.parameters())
+        D_A_total_params = sum(p.numel() for p in D_A.parameters())
+        D_B_total_params = sum(p.numel() for p in D_B.parameters())
+
+        print(f"G_A: {G_A_total_params}\n"
+              f"G_B: {G_B_total_params}\n"
+              f"D_A: {D_A_total_params}\n"
+              f"D_B: {D_B_total_params}\n")
 
         # Optimizers + schedulers
         import itertools
@@ -622,18 +643,21 @@ if __name__ == '__main__':
             val_df.reset_index(drop=True, inplace=True)
 
             # Print sizes
-            logging_interval = int(len(train_df)/2)
+            logging_interval = int(len(train_df) / 2)
             print(f'The length of the training is {len(train_df)}')
             print(f'The length of the validation is {len(val_df)}')
             print(f'The length of the inference is {len(inf_df)}')
 
             # Data dicts
             if opt.t1_aid:
-                train_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
+                train_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
+                                   image_name, label_name, t1_name
                                    in zip(train_df.Filename, train_df.Label_Filename, train_df.T1)]
-                val_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
+                val_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
+                                 image_name, label_name, t1_name
                                  in zip(val_df.Filename, val_df.Label_Filename, val_df.T1)]
-                inf_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
+                inf_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
+                                 image_name, label_name, t1_name
                                  in zip(inf_df.Filename, inf_df.Label_Filename, inf_df.T1)]
             else:
                 train_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
@@ -677,11 +701,14 @@ if __name__ == '__main__':
                 random.Random(7).shuffle(val_t1s)
                 random.Random(10).shuffle(inf_t1s)
 
-                train_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
+                train_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
+                                   image_name, label_name, t1_name
                                    in zip(cycle(train_images), train_labels, cycle(train_t1s))]
-                val_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
+                val_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
+                                 image_name, label_name, t1_name
                                  in zip(cycle(val_images), val_labels, cycle(val_t1s))]
-                inf_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
+                inf_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
+                                 image_name, label_name, t1_name
                                  in zip(cycle(inf_images), inf_labels, cycle(inf_t1s))]
             else:
                 train_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
@@ -692,7 +719,7 @@ if __name__ == '__main__':
                                  in zip(cycle(inf_images), inf_labels)]
 
             # Print sizes
-            logging_interval = int(len(train_images)/2)
+            logging_interval = int(len(train_images) / 2)
             print(f'The length of the training is {len(train_images)}')
             print(f'The length of the validation is {len(val_images)}')
             print(f'The length of the inference is {len(inf_images)}')
@@ -1226,7 +1253,8 @@ if __name__ == '__main__':
                                                           G_A,
                                                           overlap=overlap,
                                                           mode='gaussian')
-                        fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_real_T1, inf_coords), dim=1), 160, 1,
+                        fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_real_T1, inf_coords), dim=1), 160,
+                                                          1,
                                                           G_B,
                                                           overlap=overlap,
                                                           mode='gaussian')
