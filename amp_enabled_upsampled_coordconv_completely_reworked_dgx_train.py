@@ -530,9 +530,13 @@ if __name__ == '__main__':
         D_optimizer = torch.optim.Adam(itertools.chain(D_A.parameters(), D_B.parameters()),
                                        lr=opt.disc_lr, betas=(0.5, 0.999))
 
-        # Domain A
+        # Domain A + B
         G_scheduler = torch.optim.lr_scheduler.ExponentialLR(G_optimizer, 0.999)
         D_scheduler = torch.optim.lr_scheduler.ExponentialLR(D_optimizer, 0.999)
+
+        # Scaler
+        G_scaler = torch.cuda.amp.GradScaler()
+        D_scaler = torch.cuda.amp.GradScaler()
 
         # Loading
         # Model loading
@@ -843,25 +847,35 @@ if __name__ == '__main__':
                         # Always have to do at least one run otherwise how is accuracy calculated?
                         for _ in range(1):
                             # Update discriminator by looping N times
-                            # with torch.cuda.amp.autocast(enabled=True):
-                            D_B_loss, real_D_B_acc, fake_D_B_acc, _, fake_D_B_out = discriminator_loss(
-                                gen_images=fake_B,
-                                real_images=real_B,
-                                discriminator=D_B,
-                                real_label_flip_chance=opt.label_flipping_chance)
-                            D_A_loss, real_D_A_acc, fake_D_A_acc, _, fake_D_A_out = discriminator_loss(
-                                gen_images=fake_A,
-                                real_images=real_A,
-                                discriminator=D_A,
-                                real_label_flip_chance=opt.label_flipping_chance)
+                            with torch.cuda.amp.autocast(enabled=True):
+                                D_B_loss, real_D_B_acc, fake_D_B_acc, _, fake_D_B_out = discriminator_loss(
+                                    gen_images=fake_B,
+                                    real_images=real_B,
+                                    discriminator=D_B,
+                                    real_label_flip_chance=opt.label_flipping_chance)
+                                D_A_loss, real_D_A_acc, fake_D_A_acc, _, fake_D_A_out = discriminator_loss(
+                                    gen_images=fake_A,
+                                    real_images=real_A,
+                                    discriminator=D_A,
+                                    real_label_flip_chance=opt.label_flipping_chance)
 
-                            # if overall_disc_acc < disc_acc_thr_upper:
                             D_optimizer.zero_grad()
+                            D_scaler.scale(D_A_loss).backward()
+                            D_scaler.scale(D_B_loss).backward()
+
+                            # Unscales the gradients of optimizer's assigned params in-place
+                            # D_scaler.unscale_(D_optimizer)
+
+                            # # Since the gradients of optimizer's assigned params are unscaled, clips as usual:
+                            # torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+
+                            D_scaler.step(D_optimizer)
+                            D_scaler.update()
 
                             # Propagate + Log
-                            D_B_loss.backward()
-                            D_A_loss.backward()
-                            D_optimizer.step()
+                            # D_B_loss.backward()
+                            # D_A_loss.backward()
+                            # D_optimizer.step()
 
                             # Log
                             D_B_total_loss += D_B_loss.item()
@@ -888,40 +902,51 @@ if __name__ == '__main__':
                         # Generator training
                         G_optimizer.zero_grad()
 
-                        # with torch.cuda.amp.autocast(enabled=True):
-                        # Train Generator: Always do this or make it threshold based as well?
-                        G_A_loss = generator_loss(gen_images=fake_B, discriminator=D_B)
-                        G_B_loss = generator_loss(gen_images=fake_A, discriminator=D_A)
+                        with torch.cuda.amp.autocast(enabled=True):
+                            # Train Generator: Always do this or make it threshold based as well?
+                            G_A_loss = generator_loss(gen_images=fake_B, discriminator=D_B)
+                            G_B_loss = generator_loss(gen_images=fake_A, discriminator=D_A)
 
-                        # Cycle losses: G_A and G_B
-                        A_cycle = criterionCycle(rec_A, real_A)
-                        B_cycle = criterionCycle(rec_B, real_B)
+                            # Cycle losses: G_A and G_B
+                            A_cycle = criterionCycle(rec_A, real_A)
+                            B_cycle = criterionCycle(rec_B, real_B)
 
-                        # Idt losses
-                        # idt_A_loss = criterionIdt(idt_A, real_B)
-                        # idt_B_loss = criterionIdt(idt_B, real_A)
+                            # Idt losses
+                            # idt_A_loss = criterionIdt(idt_A, real_B)
+                            # idt_B_loss = criterionIdt(idt_B, real_A)
 
-                        # Total loss
-                        if opt.perceptual and not opt.msssim:
-                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net,
-                                                                opt.patch_size) * opt.perceptual_weighting
-                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_perceptual_loss
-                        elif not opt.perceptual and opt.msssim:
-                            A_msssim_loss = criterionMSSSIM(real_A, rec_A) * opt.msssim_weighting
-                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss
-                        elif opt.perceptual and opt.msssim:
-                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net,
-                                                                opt.patch_size) * opt.perceptual_weighting
-                            A_msssim_loss = criterionMSSSIM(real_A, rec_A) * opt.msssim_weighting
-                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss + A_perceptual_loss
-                        else:
-                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
+                            # Total loss
+                            if opt.perceptual and not opt.msssim:
+                                A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net,
+                                                                    opt.patch_size) * opt.perceptual_weighting
+                                total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_perceptual_loss
+                            elif not opt.perceptual and opt.msssim:
+                                A_msssim_loss = criterionMSSSIM(real_A, rec_A) * opt.msssim_weighting
+                                total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss
+                            elif opt.perceptual and opt.msssim:
+                                A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net,
+                                                                    opt.patch_size) * opt.perceptual_weighting
+                                A_msssim_loss = criterionMSSSIM(real_A, rec_A) * opt.msssim_weighting
+                                total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss + A_perceptual_loss
+                            else:
+                                total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
 
                         # Backward
-                        total_G_loss.backward()
+                        # total_G_loss.backward()
+                        #
+                        # # G optimization
+                        # G_optimizer.step()
 
-                        # G optimization
-                        G_optimizer.step()
+                        G_scaler.scale(total_G_loss).backward()
+
+                        # Unscales the gradients of optimizer's assigned params in-place
+                        # G_scaler.unscale_(G_optimizer)
+
+                        # # Since the gradients of optimizer's assigned params are unscaled, clips as usual:
+                        # torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+
+                        G_scaler.step(G_optimizer)
+                        G_scaler.update()
 
                         if opt.perceptual and opt.msssim:
                             print(f"Percep: {A_perceptual_loss.cpu().detach().tolist():.3f}, "
