@@ -489,11 +489,11 @@ if __name__ == '__main__':
         # Discriminators
         D_A = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
                                              opt.n_layers_D,
-                                             nn.InstanceNorm3d, False, 1, False)
+                                             nn.InstanceNorm3d, False, opt.n_D, False)
 
         D_B = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
                                              opt.n_layers_D,
-                                             nn.InstanceNorm3d, False, 1, False)
+                                             nn.InstanceNorm3d, False, opt.n_D, False)
 
         # Associated variables
         G_A = nn.DataParallel(G_A)
@@ -650,32 +650,33 @@ if __name__ == '__main__':
         elif not opt.use_csv:
             full_images = sorted(glob.glob(os.path.join(images_dir, "*.nii.gz")))
             full_labels = sorted(glob.glob(os.path.join(labels_dir, "*.nii.gz")))
-            full_t1s = sorted(glob.glob(os.path.join(t1s_dir, "*.nii.gz")))
 
             # Splits: Random NON-GLOBAL shuffle:
             # https://stackoverflow.com/questions/19306976/python-shuffling-with-a-parameter-to-get-the-same-result
             random.Random(1).shuffle(full_images)
             random.Random(1).shuffle(full_labels)
-            random.Random(1).shuffle(full_t1s)
 
             train_images, val_images, inf_images = create_folds(full_images, train_split=0.8, val_split=0.1)
             train_labels, val_labels, inf_labels = create_folds(full_labels, train_split=0.8, val_split=0.1)
-            train_t1s, val_t1s, inf_t1s = create_folds(full_t1s, train_split=0.8, val_split=0.1)
 
-            # Re-shuffle
+            # Re-shuffle: Don't want data to be subject matched!
             random.Random(2).shuffle(train_images)
             random.Random(3).shuffle(train_labels)
-            random.Random(4).shuffle(train_t1s)
-            
+
             random.Random(5).shuffle(val_images)
             random.Random(6).shuffle(val_labels)
-            random.Random(7).shuffle(val_t1s)
-            
+
             random.Random(8).shuffle(inf_images)
             random.Random(9).shuffle(inf_labels)
-            random.Random(10).shuffle(inf_t1s)
-            
+
             if opt.t1_aid:
+                full_t1s = sorted(glob.glob(os.path.join(t1s_dir, "*.nii.gz")))
+                random.Random(1).shuffle(full_t1s)
+                train_t1s, val_t1s, inf_t1s = create_folds(full_t1s, train_split=0.8, val_split=0.1)
+                random.Random(4).shuffle(train_t1s)
+                random.Random(7).shuffle(val_t1s)
+                random.Random(10).shuffle(inf_t1s)
+
                 train_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
                                    in zip(cycle(train_images), train_labels, cycle(train_t1s))]
                 val_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for image_name, label_name, t1_name
@@ -835,9 +836,7 @@ if __name__ == '__main__':
                             D_A_loss.backward()
                             D_optimizer.step()
 
-                            # D_B_scaler.scale(D_B_loss).backward()
-                            # D_B_scaler.step(D_B_optimizer)
-                            # D_B_scaler.update()
+                            # Log
                             D_B_total_loss += D_B_loss.item()
                             D_A_total_loss += D_A_loss.item()
 
@@ -864,7 +863,6 @@ if __name__ == '__main__':
 
                         # with torch.cuda.amp.autocast(enabled=True):
                         # Train Generator: Always do this or make it threshold based as well?
-                        # Only update generator if discriminator is doing too well
                         G_A_loss = generator_loss(gen_images=fake_B, discriminator=D_B)
                         G_B_loss = generator_loss(gen_images=fake_A, discriminator=D_A)
 
@@ -1203,16 +1201,8 @@ if __name__ == '__main__':
                 G_scheduler.step(epoch)
                 D_scheduler.step(epoch)
         elif opt.phase == "test":
-            # Overlap and sliding window inference
-            from monai.inferers import sliding_window_inference
-
+            # Overlap
             overlap = 0.3
-
-
-            # Normalisation
-            def normalise_images(array):
-                return (array - np.min(array)) / (np.max(array) - np.min(array))
-
 
             # Carry out inference
             G_A.eval()

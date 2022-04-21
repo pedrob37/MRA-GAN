@@ -35,6 +35,7 @@ class BaseOptions():
         parser.add_argument('--ndf', type=int, default=32, help='# of discrim filters in first conv layer')
         parser.add_argument('--netD', type=str, default='n_layers', help='selects model to use for netD')
         parser.add_argument('--n_layers_D', type=int, default=5, help='only used if netD==n_layers')
+        parser.add_argument('--n_D', type=int, default=1, help='Number of multi-scale discriminators')
         #parser.add_argument('--netG', type=str, default='resnet_9blocks', help='selects model to use for netG. Look on Networks3D to see the all list')
         parser.add_argument('--netG', type=str, default='resnet_6blocks', help='selects model to use for netG. Look on Networks3D to see the all list')
 
