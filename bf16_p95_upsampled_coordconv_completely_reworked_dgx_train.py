@@ -327,27 +327,21 @@ if __name__ == '__main__':
                                                 mode=("bilinear", "nearest", "nearest"),
                                                 as_tensor_output=False, prob=1.0,
                                                 padding_mode=('zeros', 'zeros', 'border'))]
-                                    # NormalizeIntensityd(keys=['image'], channel_wise=True),
-                                    # RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                    #                         roi_size=(opt.patch_size, opt.patch_size, opt.patch_size),
-                                    #                         random_center=True,
-                                    #                         random_size=False,
-                                    #                         num_samples=1),
-                                    # ToTensord(keys=['image', 'label', 'coords'])]
             if opt.znorm:
                 train_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
         elif opt.augmentation_level == "none":
-            train_transforms = Compose([LoadImaged(keys=['image', 'label']),
+            if opt.t1_aid:
+                train_transform_list = [LoadImaged(keys=['image', 'label', 'T1']),
+                                        AddChanneld(keys=['image', 'label', 'T1']),
+                                        CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+                if opt.znorm:
+                    train_transform_list.append(NormalizeIntensityd(keys=['image', 'T1'], channel_wise=True))
+            else:
+                train_transform_list = [LoadImaged(keys=['image', 'label']),
                                         AddChanneld(keys=['image', 'label']),
-                                        CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
-                                        NormalizeIntensityd(keys=['image'], channel_wise=True),
-                                        RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                                                roi_size=(
-                                                                opt.patch_size, opt.patch_size, opt.patch_size),
-                                                                random_center=True,
-                                                                random_size=False,
-                                                                num_samples=1),
-                                        ToTensord(keys=['image', 'label', 'coords'])])
+                                        CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+                if opt.znorm:
+                    train_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
 
         val_transform_list = [LoadImaged(keys=['image', 'label']),
                               AddChanneld(keys=['image', 'label']),
