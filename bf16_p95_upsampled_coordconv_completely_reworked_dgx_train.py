@@ -576,7 +576,8 @@ if __name__ == '__main__':
         val_df.reset_index(drop=True, inplace=True)
 
         # Writer
-        writer = SummaryWriter(log_dir=os.path.join(LOG_DIR, f'fold_{fold}'))
+        if rank == 0:
+            writer = SummaryWriter(log_dir=os.path.join(LOG_DIR, f'fold_{fold}'))
 
         # Print sizes
         print(f'The length of the training is {len(train_df)}')
@@ -652,7 +653,7 @@ if __name__ == '__main__':
                 # Iterations
                 for _, train_sample in enumerate(train_loader):
                     # Select a GPU for logging
-                    chosen_rank = cycle(cycled_ranks)
+                    # chosen_rank = cycle(cycled_ranks)
 
                     iter_start_time = time.time()
                     if total_steps % opt.print_freq == 0:
@@ -777,7 +778,7 @@ if __name__ == '__main__':
                         # G optimization
                         G_optimizer.step()
 
-                    if rank == chosen_rank:
+                    if rank == 0:
                         if total_steps % opt.save_latest_freq == 0:
                             print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
                             # Saving
@@ -950,7 +951,7 @@ if __name__ == '__main__':
                                 val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle
 
                         # Graphs
-                        if rank == chosen_rank:
+                        if rank == 0:
                             val_loss_adv_dict = {
                                 "Generator_A": val_G_A_loss,
                                 "Generator_B": val_G_B_loss,
@@ -1047,7 +1048,7 @@ if __name__ == '__main__':
                         # Clean-up
                         del val_real_A, val_real_B, val_sample, val_rec_A, val_rec_B
 
-                if rank == chosen_rank:
+                if rank == 0:
                     print(f'End of epoch {epoch} / {opt.niter} \t Time Taken: {time.time() - epoch_start_time:.3f} sec')
                 G_scheduler.step(epoch)
                 D_scheduler.step(epoch)
