@@ -340,6 +340,7 @@ if __name__ == '__main__':
                 train_transform_list = [LoadImaged(keys=['image', 'label']),
                                         AddChanneld(keys=['image', 'label']),
                                         CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+                # Some comment
                 if opt.znorm:
                     train_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
 
