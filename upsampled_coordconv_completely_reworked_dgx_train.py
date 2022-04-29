@@ -672,6 +672,7 @@ if __name__ == '__main__':
             assert len(val_df.Filename) == len(val_df.Label_Filename)
 
         elif not opt.use_csv:
+            import glob
             full_images = sorted(glob.glob(os.path.join(images_dir, "*.nii.gz")))
             full_labels = sorted(glob.glob(os.path.join(labels_dir, "*.nii.gz")))
 
