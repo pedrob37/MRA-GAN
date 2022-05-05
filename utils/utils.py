@@ -7,7 +7,6 @@ from typing import Dict, Hashable, Mapping, Sequence, Union
 import numpy as np
 import torch
 
-from monai.config import KeysCollection
 from monai.transforms.transform import MapTransform, Transform
 from monai.utils import (
     GridSampleMode,
@@ -15,6 +14,12 @@ from monai.utils import (
     InterpolateMode,
     NumpyPadMode,
 )
+
+from monai.utils.enums import TransformBackends
+from typing import Any, Callable, List, Optional
+from monai.config import DtypeLike, KeysCollection
+from monai.transforms.utils_pytorch_numpy_unification import clip
+from monai.config.type_definitions import NdarrayOrTensor
 
 GridSampleModeSequence = Union[Sequence[Union[GridSampleMode, str]], GridSampleMode, str]
 GridSamplePadModeSequence = Union[Sequence[Union[GridSamplePadMode, str]], GridSamplePadMode, str]
@@ -153,6 +158,83 @@ class CoordConvd(MapTransform):
         return (array - np.min(array)) / (np.max(array) - np.min(array))
 
 
+# Transforms
+class ClipRange(Transform):
+    """
+    Apply specific intensity scaling to the whole numpy array.
+    Scaling from [a_min, a_max] to [b_min, b_max] with clip option.
+
+    When `b_min` or `b_max` are `None`, `scacled_array * (b_max - b_min) + b_min` will be skipped.
+    If `clip=True`, when `b_min`/`b_max` is None, the clipping is not performed on the corresponding edge.
+
+    Args:
+        a_min: intensity original range min.
+        a_max: intensity original range max.
+        b_min: intensity target range min.
+        b_max: intensity target range max.
+        clip: whether to perform clip after scaling.
+        dtype: output data type, if None, same as input image. defaults to float32.
+    """
+
+    backend = [TransformBackends.TORCH, TransformBackends.NUMPY]
+
+    def __init__(
+            self,
+            b_min: float,
+            b_max: float,
+            dtype: DtypeLike = np.float32,
+    ) -> None:
+        self.b_min = b_min
+        self.b_max = b_max
+        self.dtype = dtype
+
+    def __call__(self, img):
+        """
+        Apply the transform to `img`.
+        """
+        dtype = self.dtype or img.dtype
+        img = clip(img, self.b_min, self.b_max)
+        ret, *_ = convert_data_type(img, dtype=dtype)
+
+        return ret
+
+
+class ClipRanged(MapTransform):
+    """
+    Dictionary-based wrapper of :py:class:`monai.transforms.ScaleIntensityRange`.
+
+    Args:
+        keys: keys of the corresponding items to be transformed.
+            See also: monai.transforms.MapTransform
+        a_min: intensity original range min.
+        a_max: intensity original range max.
+        b_min: intensity target range min.
+        b_max: intensity target range max.
+        clip: whether to perform clip after scaling.
+        dtype: output data type, if None, same as input image. defaults to float32.
+        allow_missing_keys: don't raise exception if key is missing.
+    """
+
+    backend = ClipRange.backend
+
+    def __init__(
+        self,
+        keys: KeysCollection,
+        b_min: Optional[float] = None,
+        b_max: Optional[float] = None,
+        dtype: DtypeLike = np.float32,
+        allow_missing_keys: bool = False,
+    ) -> None:
+        super().__init__(keys, allow_missing_keys)
+        self.scaler = ClipRange(b_min, b_max, dtype)
+
+    def __call__(self, data: Mapping[Hashable, NdarrayOrTensor]) -> Dict[Hashable, NdarrayOrTensor]:
+        d = dict(data)
+        for key in self.key_iterator(d):
+            d[key] = self.scaler(d[key])
+        return d
+
+
 """ Variational Autoencoder
 
 Based on
@@ -254,12 +336,11 @@ class VAE(nn.Module):
     #     reconstruction = self.decode(z_mu)
     #     return reconstruction
 
-from typing import Callable, Union
 
 import torch
 import torch.nn.functional as F
 from monai.data.utils import compute_importance_map, dense_patch_slices, get_valid_patch_size
-from monai.utils import BlendMode, PytorchPadMode, fall_back_tuple
+from monai.utils import BlendMode, PytorchPadMode, fall_back_tuple, convert_data_type
 
 
 def custom_sliding_window_inference(

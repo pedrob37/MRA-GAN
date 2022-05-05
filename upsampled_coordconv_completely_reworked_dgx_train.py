@@ -7,7 +7,7 @@ from options.train_options import TrainOptions
 import time
 from models import create_model
 from utils.visualizer import Visualizer
-from utils.utils import create_path, save_img, CoordConvd, kernel_size_calculator, create_folds
+from utils.utils import create_path, save_img, CoordConvd, kernel_size_calculator, create_folds, ClipRanged
 import monai
 import pandas as pd
 import numpy as np
@@ -329,6 +329,8 @@ if __name__ == '__main__':
             if opt.t1_aid:
                 train_transform_list = [LoadImaged(keys=['image', 'label', 'T1']),
                                         AddChanneld(keys=['image', 'label', 'T1']),
+                                        # monai.transforms.utils_pytorch_numpy_unification.clip(a, a_min, a_max),
+                                        ClipRanged(keys=["T1"], b_min=-110, b_max=6000),
                                         CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
                                         RandAffined(keys=["image", "label", "coords", 'T1'],
                                                     scale_range=(0.1, 0.1, 0.1),
@@ -369,6 +371,7 @@ if __name__ == '__main__':
         if opt.t1_aid:
             val_transform_list = [LoadImaged(keys=['image', 'label', 'T1']),
                                   AddChanneld(keys=['image', 'label', 'T1']),
+                                  ClipRanged(keys=["T1"], b_min=-110, b_max=6000),
                                   CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
             if opt.znorm:
                 val_transform_list.append(NormalizeIntensityd(keys=['image', 'T1'], channel_wise=True))
@@ -423,6 +426,7 @@ if __name__ == '__main__':
         if opt.t1_aid:
             inf_transform_list = [LoadImaged(keys=['image', 'label', 'T1']),
                                   AddChanneld(keys=['image', 'label', 'T1']),
+                                  ClipRanged(keys=["T1"], b_min=-110, b_max=6000),
                                   CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
             if opt.znorm:
                 inf_transform_list.append(NormalizeIntensityd(keys=['image', 'T1'], channel_wise=True))
@@ -791,7 +795,7 @@ if __name__ == '__main__':
                 # Iterations
                 for _, train_sample in enumerate(train_loader):
                     iter_start_time = time.time()
-                    print(logging_interval, total_steps)
+                    print("LI, total_steps", logging_interval, total_steps)
                     if total_steps % opt.print_freq == 0:
                         t_data = iter_start_time - iter_data_time
                     visualizer.reset()
@@ -1017,6 +1021,14 @@ if __name__ == '__main__':
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
 
+                        if opt.t1_aid:
+                            img2tensorboard.add_animated_gif(writer=writer,
+                                                             image_tensor=normalise_images(
+                                                                 real_T1[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                             tag=f'Visuals/T1_fold_{fold}',
+                                                             max_out=opt.patch_size // 4,
+                                                             scale_factor=255, global_step=running_iter)
+
                         # Generated
                         img2tensorboard.add_animated_gif(writer=writer,
                                                          image_tensor=normalise_images(
@@ -1201,6 +1213,14 @@ if __name__ == '__main__':
                                                          tag=f'Validation/Real_A_fold_{fold}',
                                                          max_out=opt.patch_size // 4,
                                                          scale_factor=255, global_step=running_iter)
+
+                        if opt.t1_aid:
+                            img2tensorboard.add_animated_gif(writer=writer,
+                                                             image_tensor=normalise_images(
+                                                                 val_real_T1[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                             tag=f'Validation/T1_fold_{fold}',
+                                                             max_out=opt.patch_size // 4,
+                                                             scale_factor=255, global_step=running_iter)
 
                         # Generated
                         img2tensorboard.add_animated_gif(writer=writer,
