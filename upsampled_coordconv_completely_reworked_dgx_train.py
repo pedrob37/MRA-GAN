@@ -671,6 +671,9 @@ if __name__ == '__main__':
             assert len(train_df.Filename) == len(train_df.Label_Filename)
             assert len(val_df.Filename) == len(val_df.Label_Filename)
 
+            # Need to shuffle!
+            do_shuffling = True
+
         elif not opt.use_csv:
             import glob
             full_images = sorted(glob.glob(os.path.join(images_dir, "*.nii.gz")))
@@ -726,6 +729,9 @@ if __name__ == '__main__':
             print(f'The length of the validation is {len(val_images)}')
             print(f'The length of the inference is {len(inf_images)}')
 
+            # No need to shuffle!
+            do_shuffling = False
+
         if opt.phase == "train":
             # Training + validation loaders
             train_ds = monai.data.PersistentDataset(data=train_data_dict,
@@ -735,7 +741,7 @@ if __name__ == '__main__':
 
             train_loader = DataLoader(dataset=train_ds,
                                       batch_size=opt.batch_size,
-                                      shuffle=True,
+                                      shuffle=do_shuffling,
                                       num_workers=opt.workers,
                                       )
 
@@ -746,7 +752,7 @@ if __name__ == '__main__':
 
             val_loader = DataLoader(dataset=val_ds,
                                     batch_size=opt.batch_size,
-                                    shuffle=True,
+                                    shuffle=do_shuffling,
                                     num_workers=opt.workers,
                                     )
         elif opt.phase == "test":
@@ -756,7 +762,7 @@ if __name__ == '__main__':
 
             inf_loader = DataLoader(dataset=inf_ds,
                                     batch_size=1,
-                                    shuffle=True,
+                                    shuffle=do_shuffling,
                                     num_workers=opt.workers,
                                     )
 
