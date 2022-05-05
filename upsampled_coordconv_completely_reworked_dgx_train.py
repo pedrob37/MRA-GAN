@@ -711,6 +711,7 @@ if __name__ == '__main__':
                 inf_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
                                  image_name, label_name, t1_name
                                  in zip(cycle(inf_images), inf_labels, cycle(inf_t1s))]
+                print(f"Length of inference images, labels, T1s: {len(inf_images)}, {len(inf_labels)}, {len(inf_t1s)}")
             else:
                 train_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
                                    in zip(cycle(train_images), train_labels)]
@@ -784,6 +785,7 @@ if __name__ == '__main__':
                 # Iterations
                 for _, train_sample in enumerate(train_loader):
                     iter_start_time = time.time()
+                    print(logging_interval, total_steps)
                     if total_steps % opt.print_freq == 0:
                         t_data = iter_start_time - iter_data_time
                     visualizer.reset()
@@ -1268,6 +1270,9 @@ if __name__ == '__main__':
                                                          G_A,
                                                          overlap=overlap,
                                                          mode='gaussian')
+
+                        print(f"The MRA, vasculature, and T1 names are: {image_name}, {label_name}, {t1_name}")
+
                     else:
                         # Pass inputs to generators
                         fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), 160, 1, G_A,
@@ -1285,6 +1290,8 @@ if __name__ == '__main__':
                                                          G_A,
                                                          overlap=overlap,
                                                          mode='gaussian')
+
+                        print(f"The MRA and vasculature names are: {image_name}, {label_name}")
 
                     del inf_real_A, inf_real_B, inf_sample, inf_coords
                     if opt.t1_aid:
