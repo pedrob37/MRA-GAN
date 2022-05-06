@@ -20,6 +20,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--standard_msssim', type=self.str2bool, nargs='?', const=True, default=True, help='Whether to use perceptual loss')
         parser.add_argument('--t1_aid', type=self.str2bool, nargs='?', const=True, default=False, help='Whether to use T1s as supplementary information')
         parser.add_argument('--znorm', type=self.str2bool, nargs='?', const=True, default=True, help='Whether to use znorm')
+        parser.add_argument('--weighted_sampling', type=self.str2bool, nargs='?', const=True, default=False, help='Whether to weight by MRA or not')
         parser.add_argument('--range_correction', type=str, default="none", help='Type of correction for MS-SSIM loss')
         parser.add_argument('--upsampling_method', type=str, default="trilinear", help='Activation for G_A network: i.e. MRA -> Vasc.')
         parser.add_argument('--lambda_cycle', type=int, default=1, help='Multiplicative factor for cycle losses')

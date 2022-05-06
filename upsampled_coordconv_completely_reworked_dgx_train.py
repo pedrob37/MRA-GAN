@@ -25,6 +25,7 @@ from monai.transforms import (Compose,
                               RandBiasFieldd,
                               ToTensord,
                               RandSpatialCropSamplesd,
+                              RandWeightedCropd,
                               NormalizeIntensityd,
                               RandGaussianSmoothd,
                               RandGaussianNoiseD,
@@ -222,9 +223,9 @@ if __name__ == '__main__':
             fake_disc_accuracy = fake_disc_accuracy_ds1
 
         return (genloss + realloss) / 2, \
-            real_disc_accuracy, \
-            fake_disc_accuracy, \
-            real_disc_prediction, fake_disc_prediction
+               real_disc_accuracy, \
+               fake_disc_accuracy, \
+               real_disc_prediction, fake_disc_prediction
 
 
     def perceptual_loss(real_images, rec_images, network_choice, num_slices):
@@ -307,6 +308,12 @@ if __name__ == '__main__':
 
 
     # Augmentations/ Transforms
+    if opt.t1_aid:
+        general_keys_list = ['image', 'label', 'T1']
+        crop_keys_list = ['image', 'label', 'coords', 'T1']
+    else:
+        general_keys_list = ['image', 'label']
+        crop_keys_list = ['image', 'label', 'coords']
     if opt.phase == "train":
         if opt.augmentation_level == "heavy":
             train_transforms = Compose([LoadImaged(keys=['image', 'label']),
@@ -392,36 +399,34 @@ if __name__ == '__main__':
                 val_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
 
         # Extend remaining transforms
-        if opt.t1_aid:
-            train_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords", 'T1'],
-                                                                 roi_size=(
-                                                                     opt.patch_size, opt.patch_size, opt.patch_size),
-                                                                 random_center=True,
-                                                                 random_size=False,
-                                                                 num_samples=1),
-                                         ToTensord(keys=['image', 'label', 'coords', 'T1'])])
-            val_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords", 'T1'],
-                                                               roi_size=(
-                                                                   opt.patch_size, opt.patch_size, opt.patch_size),
-                                                               random_center=True,
-                                                               random_size=False,
-                                                               num_samples=1),
-                                       ToTensord(keys=['image', 'label', 'coords', 'T1'])])
+        if opt.weighted_sampling:
+            train_transform_list.extend([RandWeightedCropd(keys=crop_keys_list,
+                                                           w_key='image',
+                                                           spatial_size=(
+                                                               opt.patch_size, opt.patch_size, 128),
+                                                           num_samples=1),
+                                         ToTensord(keys=crop_keys_list)])
+            val_transform_list.extend([RandWeightedCropd(keys=crop_keys_list,
+                                                         w_key='image',
+                                                         spatial_size=(
+                                                             opt.patch_size, opt.patch_size, 128),
+                                                         num_samples=1),
+                                       ToTensord(keys=crop_keys_list)])
         else:
-            train_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords"],
+            train_transform_list.extend([RandSpatialCropSamplesd(keys=crop_keys_list,
                                                                  roi_size=(
                                                                      opt.patch_size, opt.patch_size, opt.patch_size),
                                                                  random_center=True,
                                                                  random_size=False,
                                                                  num_samples=1),
-                                         ToTensord(keys=['image', 'label', 'coords'])])
-            val_transform_list.extend([RandSpatialCropSamplesd(keys=["image", "label", "coords"],
-                                                               roi_size=(
-                                                                   opt.patch_size, opt.patch_size, opt.patch_size),
-                                                               random_center=True,
-                                                               random_size=False,
-                                                               num_samples=1),
-                                       ToTensord(keys=['image', 'label', 'coords'])])
+                                         ToTensord(keys=crop_keys_list)])
+        val_transform_list.extend([RandSpatialCropSamplesd(keys=crop_keys_list,
+                                                           roi_size=(
+                                                               opt.patch_size, opt.patch_size, opt.patch_size),
+                                                           random_center=True,
+                                                           random_size=False,
+                                                           num_samples=1),
+                                   ToTensord(keys=crop_keys_list)])
 
         # Compose
         train_transforms = Compose(train_transform_list)
@@ -689,6 +694,7 @@ if __name__ == '__main__':
 
         elif not opt.use_csv:
             import glob
+
             full_images = sorted(glob.glob(os.path.join(images_dir, "*.nii.gz")))
             full_labels = sorted(glob.glob(os.path.join(labels_dir, "*.nii.gz")))
 
@@ -1226,7 +1232,8 @@ if __name__ == '__main__':
                         if opt.t1_aid:
                             img2tensorboard.add_animated_gif(writer=writer,
                                                              image_tensor=normalise_images(
-                                                                 val_real_T1[0, 0, ...][None, ...].cpu().detach().numpy()),
+                                                                 val_real_T1[0, 0, ...][
+                                                                     None, ...].cpu().detach().numpy()),
                                                              tag=f'Validation/T1_fold_{fold}',
                                                              max_out=opt.patch_size // 4,
                                                              scale_factor=255, global_step=running_iter)
