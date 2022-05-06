@@ -810,7 +810,7 @@ if __name__ == '__main__':
                 # Iterations
                 for _, train_sample in enumerate(train_loader):
                     iter_start_time = time.time()
-                    print("LI, total_steps", logging_interval, total_steps)
+                    # print("LI, total_steps", logging_interval, total_steps)
                     if total_steps % opt.print_freq == 0:
                         t_data = iter_start_time - iter_data_time
                     visualizer.reset()
