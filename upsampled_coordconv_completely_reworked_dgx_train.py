@@ -38,7 +38,16 @@ if __name__ == '__main__':
     # -----  Loading the init options -----
     opt = TrainOptions().parse()
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_number
+    from monai.utils import set_determinism
+
+    random_seed_number = np.random.randint(0, 100, 1)[0]
+    set_determinism(random_seed_number)
+    print(f"The random seed is {random_seed_number}")
+
+    # GPU count
+    print(f"There are {torch.cuda.device_count()} GPUs available!")
+
+    # os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_number
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Model choice: Trilinear, nearest neighbour, or nearest neighbour + subpixel convolution
@@ -647,7 +656,7 @@ if __name__ == '__main__':
             val_df.reset_index(drop=True, inplace=True)
 
             # Print sizes
-            logging_interval = int(len(train_df) / 2)
+            logging_interval = int(len(train_df) / 3)
             print(f'The length of the training is {len(train_df)}')
             print(f'The length of the validation is {len(val_df)}')
             print(f'The length of the inference is {len(inf_df)}')
@@ -980,7 +989,7 @@ if __name__ == '__main__':
                         D_A.cuda()
                         D_B.cuda()
 
-                    if total_steps % logging_interval == 0:
+                    if running_iter % logging_interval == 0:
                         # Graphs
                         loss_adv_dict = {"Total_G_loss": total_G_loss,
                                          "Generator_A": G_A_loss,
