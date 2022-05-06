@@ -1016,10 +1016,10 @@ if __name__ == '__main__':
                             loss_adv_dict["MSSSIM_A"] = A_msssim_loss
                             loss_granular_dict["MSSSIM_A"] = A_msssim_loss
 
-                            writer.add_scalars('Loss/Adversarial',
-                                               loss_adv_dict, running_iter)
-                            writer.add_scalars('Loss/Granular_G',
-                                               loss_granular_dict, running_iter)
+                        writer.add_scalars('Loss/Adversarial',
+                                           loss_adv_dict, running_iter)
+                        writer.add_scalars('Loss/Granular_G',
+                                           loss_granular_dict, running_iter)
 
                         # Images
                         # Reals
