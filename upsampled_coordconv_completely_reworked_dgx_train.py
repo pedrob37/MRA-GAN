@@ -1354,9 +1354,9 @@ if __name__ == '__main__':
                              os.path.join(FIG_DIR, "Fake_B_" + fake_vasc_basename))
 
                     # Saving: Reconstructions
-                    # save_img(normalise_images(rec_A.cpu().detach().squeeze().numpy()),
-                    #          inf_affine,
-                    #          os.path.join(FIG_DIR, "Rec_A_" + os.path.basename(image_name)))
-                    # save_img(normalise_images(rec_B.cpu().detach().squeeze().numpy()),
-                    #          inf_affine,
-                    #          os.path.join(FIG_DIR, "Rec_B_" + os.path.basename(label_name)))
+                    save_img(normalise_images(rec_A.cpu().detach().squeeze().numpy()),
+                             inf_affine,
+                             os.path.join(FIG_DIR, "Rec_A_" + fake_image_basename))
+                    save_img(normalise_images(rec_B.cpu().detach().squeeze().numpy()),
+                             inf_affine,
+                             os.path.join(FIG_DIR, "Rec_B_" + fake_vasc_basename))
