@@ -128,7 +128,11 @@ if __name__ == '__main__':
                                             )
 
     # Other cycle/ idt losses
-    criterionCycle = torch.nn.L1Loss()
+    criterionCycleA = torch.nn.L1Loss()
+    if opt.gen_dice_cycle:
+        criterionCycleB = monai.losses.generalized_dice()
+    else:
+        criterionCycleB = torch.nn.L1Loss()
     criterionIdt = torch.nn.L1Loss()
 
     # MS-SSIM
@@ -922,8 +926,8 @@ if __name__ == '__main__':
                         G_B_loss = generator_loss(gen_images=fake_A, discriminator=D_A)
 
                         # Cycle losses: G_A and G_B
-                        A_cycle = criterionCycle(rec_A, real_A)
-                        B_cycle = criterionCycle(rec_B, real_B)
+                        A_cycle = criterionCycleA(rec_A, real_A)
+                        B_cycle = criterionCycleB(rec_B, real_B)
 
                         # Idt losses
                         # idt_A_loss = criterionIdt(idt_A, real_B)
@@ -1137,8 +1141,8 @@ if __name__ == '__main__':
                             val_G_B_loss = generator_loss(gen_images=val_fake_A, discriminator=D_A)
 
                             # Cycle losses: G_A and G_B
-                            val_A_cycle = criterionCycle(val_rec_A, val_real_A)
-                            val_B_cycle = criterionCycle(val_rec_B, val_real_B)
+                            val_A_cycle = criterionCycleA(val_rec_A, val_real_A)
+                            val_B_cycle = criterionCycleB(val_rec_B, val_real_B)
 
                             if opt.perceptual and not opt.msssim:
                                 val_A_perceptual_loss = perceptual_loss(val_real_A, val_rec_A, perceptual_net,
