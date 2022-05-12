@@ -29,6 +29,7 @@ from monai.transforms import (Compose,
                               NormalizeIntensityd,
                               RandGaussianSmoothd,
                               RandGaussianNoiseD,
+                              RandGaussianNoise,
                               SpatialPadd,
                               )
 from utils.MSSSIM.pytorch_msssim.ssim import SSIM
@@ -312,6 +313,8 @@ if __name__ == '__main__':
 
 
     # Augmentations/ Transforms
+    if opt.cycle_noise:
+        post_gen_noise = RandGaussianNoise(prob=1.0, mean=0.0, std=0.05)
     if opt.t1_aid:
         general_keys_list = ['image', 'label', 'T1']
         crop_keys_list = ['image', 'label', 'coords', 'T1']
@@ -837,6 +840,8 @@ if __name__ == '__main__':
                         real_T1 = train_sample[0]['T1'].cuda()
                         fake_B = G_A(torch.cat((real_A, train_coords), dim=1))
                         # Pair fake B with fake z to generate rec_A: Add Coords as well and T1
+                        if opt.cycle_noise:
+                            fake_B = torch.abs(post_gen_noise(fake_B))
                         rec_A = G_B(torch.cat((fake_B, real_T1, train_coords), dim=1))
 
                         # Backward loop: Sample z from normal distribution
@@ -846,6 +851,8 @@ if __name__ == '__main__':
                     else:
                         # Pass inputs to model and optimise: Forward loop
                         fake_B = G_A(torch.cat((real_A, train_coords), dim=1))
+                        if opt.cycle_noise:
+                            fake_B = torch.abs(post_gen_noise(fake_B))
                         # Pair fake B with fake z to generate rec_A: Add Coords as well
                         rec_A = G_B(torch.cat((fake_B, train_coords), dim=1))
 
@@ -1103,6 +1110,8 @@ if __name__ == '__main__':
                                 val_real_T1 = val_sample[0]['T1'].cuda()
                                 # Pass inputs to model and optimise: Forward loop
                                 val_fake_B = G_A(torch.cat((val_real_A, val_coords), dim=1))
+                                if opt.cycle_noise:
+                                    val_fake_B = torch.abs(post_gen_noise(val_fake_B))
                                 # Pair fake B with fake z to generate rec_A
                                 val_rec_A = G_B(torch.cat((val_fake_B, val_real_T1, val_coords), dim=1))
 
@@ -1113,6 +1122,8 @@ if __name__ == '__main__':
                             else:
                                 # Pass inputs to model and optimise: Forward loop
                                 val_fake_B = G_A(torch.cat((val_real_A, val_coords), dim=1))
+                                if opt.cycle_noise:
+                                    val_fake_B = torch.abs(post_gen_noise(val_fake_B))
                                 # Pair fake B with fake z to generate rec_A
                                 val_rec_A = G_B(torch.cat((val_fake_B, val_coords), dim=1))
 
@@ -1298,21 +1309,21 @@ if __name__ == '__main__':
                         # Pass inputs to generators
                         inf_real_T1 = inf_sample['T1'].cuda()
                         t1_name = os.path.basename(inf_sample["T1_meta_dict"]["filename_or_obj"][0])
-                        fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), 160, 1,
+                        fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), (192, 224, 192), 1,
                                                           G_A,
                                                           overlap=overlap,
                                                           mode='gaussian')
-                        fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_real_T1, inf_coords), dim=1), 160,
+                        fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_real_T1, inf_coords), dim=1), (192, 224, 192),
                                                           1,
                                                           G_B,
                                                           overlap=overlap,
                                                           mode='gaussian')
 
-                        rec_A = sliding_window_inference(torch.cat((fake_B, inf_real_T1, inf_coords), dim=1), 160, 1,
+                        rec_A = sliding_window_inference(torch.cat((fake_B, inf_real_T1, inf_coords), dim=1), (192, 224, 192), 1,
                                                          G_B,
                                                          overlap=overlap,
                                                          mode='gaussian')
-                        rec_B = sliding_window_inference(torch.cat((fake_A, inf_coords), dim=1), 160, 1,
+                        rec_B = sliding_window_inference(torch.cat((fake_A, inf_coords), dim=1), (192, 224, 192), 1,
                                                          G_A,
                                                          overlap=overlap,
                                                          mode='gaussian')
