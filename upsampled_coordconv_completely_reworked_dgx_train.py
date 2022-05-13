@@ -1332,18 +1332,18 @@ if __name__ == '__main__':
 
                     else:
                         # Pass inputs to generators
-                        fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), 160, 1, G_A,
+                        fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), (192, 224, 192), 1, G_A,
                                                           overlap=overlap,
                                                           mode='gaussian')
-                        fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_coords), dim=1), 160, 1, G_B,
+                        fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_coords), dim=1), (192, 224, 192), 1, G_B,
                                                           overlap=overlap,
                                                           mode='gaussian')
 
-                        rec_A = sliding_window_inference(torch.cat((fake_B, inf_coords), dim=1), 160, 1,
+                        rec_A = sliding_window_inference(torch.cat((fake_B, inf_coords), dim=1), (192, 224, 192), 1,
                                                          G_B,
                                                          overlap=overlap,
                                                          mode='gaussian')
-                        rec_B = sliding_window_inference(torch.cat((fake_A, inf_coords), dim=1), 160, 1,
+                        rec_B = sliding_window_inference(torch.cat((fake_A, inf_coords), dim=1), (192, 224, 192), 1,
                                                          G_A,
                                                          overlap=overlap,
                                                          mode='gaussian')
