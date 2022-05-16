@@ -16,12 +16,10 @@ import torch.nn as nn
 from models.pix2pix_disc_networks import NoisyMultiscaleDiscriminator3D, GANLoss
 import monai.visualize.img2tensorboard as img2tensorboard
 from itertools import cycle
-from models.resnets import resnet10
 from monai.transforms import (Compose,
                               LoadImaged,
                               AddChanneld,
                               RandAffined,
-                              RandCropByPosNegLabeld,
                               RandBiasFieldd,
                               ToTensord,
                               RandSpatialCropSamplesd,
@@ -30,7 +28,6 @@ from monai.transforms import (Compose,
                               RandGaussianSmoothd,
                               RandGaussianNoiseD,
                               RandGaussianNoise,
-                              SpatialPadd,
                               )
 from utils.MSSSIM.pytorch_msssim.ssim import SSIM
 
@@ -49,7 +46,6 @@ if __name__ == '__main__':
     # GPU count
     print(f"There are {torch.cuda.device_count()} GPUs available!")
 
-    # os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_number
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Model choice: Trilinear, nearest neighbour, or nearest neighbour + subpixel convolution
@@ -474,12 +470,14 @@ if __name__ == '__main__':
         CACHE_DIR = f"{base_dir}/Outputs-MRA-GAN/Cache/{opt.job_name}"
         FIG_DIR = f"{base_dir}/Outputs-MRA-GAN/Figures/{opt.job_name}"
         LOG_DIR = f'{base_dir}/Outputs-MRA-GAN/Logs/{opt.job_name}'
+        SLIM_LOG_DIR = f'{base_dir}/Outputs-MRA-GAN/Slim_Logs/{opt.job_name}'
         MODELS_DIR = f"{base_dir}/Outputs-MRA-GAN/Models/{opt.job_name}"
 
         # Create directories
         create_path(CACHE_DIR)
         create_path(FIG_DIR)
         create_path(LOG_DIR)
+        create_path(SLIM_LOG_DIR)
         create_path(MODELS_DIR)
     elif opt.phase == "test" and opt.job_name.startswith("inf"):
         opt.job_name = opt.job_name.split('-', 1)[1]
@@ -488,6 +486,7 @@ if __name__ == '__main__':
         CACHE_DIR = f"{base_dir}/Outputs-MRA-GAN/Cache/{opt.job_name}"
         FIG_DIR = f"{base_dir}/Outputs-MRA-GAN/Figures/{opt.job_name}"
         LOG_DIR = f'{base_dir}/Outputs-MRA-GAN/Logs/{opt.job_name}'
+        SLIM_LOG_DIR = f'{base_dir}/Outputs-MRA-GAN/Slim_Logs/{opt.job_name}'
         MODELS_DIR = f"{base_dir}/Outputs-MRA-GAN/Models/{opt.job_name}"
     else:
         raise NameError("Job phase is test but job name does not start with inf!")
@@ -657,6 +656,7 @@ if __name__ == '__main__':
 
         # Writer
         writer = SummaryWriter(log_dir=os.path.join(LOG_DIR, f'fold_{fold}'))
+        slim_writer = SummaryWriter(log_dir=os.path.join(SLIM_LOG_DIR, f'fold_{fold}'))
 
         if opt.use_csv:
             # Train / Val split
@@ -1032,6 +1032,12 @@ if __name__ == '__main__':
                         writer.add_scalars('Loss/Granular_G',
                                            loss_granular_dict, running_iter)
 
+                        # Slim writer only contains training curves
+                        slim_writer.add_scalars('Loss/Adversarial',
+                                                loss_adv_dict, running_iter)
+                        slim_writer.add_scalars('Loss/Granular_G',
+                                                loss_granular_dict, running_iter)
+
                         # Images
                         # Reals
                         img2tensorboard.add_animated_gif(writer=writer,
@@ -1194,6 +1200,13 @@ if __name__ == '__main__':
 
                         writer.add_scalars('Loss/Val_Granular_G',
                                            val_loss_granular_dict, running_iter)
+
+                        # Slim writer only contains training curves
+                        slim_writer.add_scalars('Loss/Val_Adversarial',
+                                                val_loss_adv_dict, running_iter)
+
+                        slim_writer.add_scalars('Loss/Val_Granular_G',
+                                                val_loss_granular_dict, running_iter)
 
                         # Saving
                         print(f'Saving the latest model (epoch {epoch}, total_steps {total_steps})')
