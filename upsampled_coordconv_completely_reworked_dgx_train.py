@@ -207,7 +207,7 @@ if __name__ == '__main__':
         fake_disc_sum_ds1 = fake_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[0][0][
             0, ...].nelement()
 
-        real_disc_accuracy_ds1 = ((real_disc_sum_ds1 > 0.5) == real_label).float().sum() / real_images.shape[0]
+        real_disc_accuracy_ds1 = ((real_disc_sum_ds1 > 0.5) == round(real_label)).float().sum() / real_images.shape[0]
         fake_disc_accuracy_ds1 = ((fake_disc_sum_ds1 > 0.5) == fake_label).float().sum() / real_images.shape[0]
         if opt.n_D == 2:
             real_disc_sum_ds2 = real_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[1][0][
@@ -305,7 +305,12 @@ if __name__ == '__main__':
         """
         output = discriminator.forward(gen_images)
         gen_fake_loss = multiscale_discriminator_loss(output, target_is_real=True)
-        return gen_fake_loss
+
+        # Calculate accuracies for every discriminator
+        gen_sum_ds1 = output[0][0].float().sum(axis=(1, 2, 3, 4)) / output[0][0][0, ...].nelement()
+        gen_acc_ds1 = ((gen_sum_ds1 > 0.5) == round(real_label)).float().sum() / gen_images.shape[0]
+
+        return gen_fake_loss, gen_acc_ds1
 
 
     # Augmentations/ Transforms
@@ -929,8 +934,8 @@ if __name__ == '__main__':
 
                         # with torch.cuda.amp.autocast(enabled=True):
                         # Train Generator: Always do this or make it threshold based as well?
-                        G_A_loss = generator_loss(gen_images=fake_B, discriminator=D_B)
-                        G_B_loss = generator_loss(gen_images=fake_A, discriminator=D_A)
+                        G_A_loss, G_A_acc = generator_loss(gen_images=fake_B, discriminator=D_B)
+                        G_B_loss, G_B_acc = generator_loss(gen_images=fake_A, discriminator=D_A)
 
                         # Cycle losses: G_A and G_B
                         A_cycle = criterionCycleA(rec_A, real_A)
@@ -1008,18 +1013,36 @@ if __name__ == '__main__':
 
                     if running_iter % logging_interval == 0:
                         # Graphs
-                        loss_adv_dict = {"Total_G_loss": total_G_loss,
-                                         "Generator_A": G_A_loss,
-                                         "Generator_B": G_B_loss,
-                                         "Discriminator_A": D_A_loss,
-                                         "Discriminator_B": D_B_loss,
-                                         }
-                        loss_granular_dict = {"total_G_loss": total_G_loss,
-                                              "Generator_A": G_A_loss,
-                                              "Generator_B": G_B_loss,
-                                              "cycle_A": A_cycle,
-                                              "cycle_B": B_cycle,
-                                              }
+                        if opt.adversarial_loss_plot:
+                            loss_adv_dict = {  # "Total_G_loss": total_G_loss,
+                                             "Generator_A": G_A_loss,
+                                             "Generator_B": G_B_loss,
+                                             "Discriminator_A": D_A_loss,
+                                             "Discriminator_B": D_B_loss,
+                                             }
+                            loss_granular_dict = {  # "total_G_loss": total_G_loss,
+                                                  "Generator_A": G_A_loss,
+                                                  "Generator_B": G_B_loss,
+                                                  "cycle_A": A_cycle,
+                                                  "cycle_B": B_cycle,
+                                                  }
+                        else:
+                            val_loss_adv_dict = {
+                                "Generator_A": G_A_acc,
+                                "Generator_B": G_B_acc,
+                                "Discriminator_A": (real_D_A_acc + fake_D_A_acc) / 2,
+                                "Discriminator_B": (real_D_B_acc + fake_D_B_acc) / 2,
+                            }
+                            val_loss_granular_dict = {
+                                "Generator_A": G_A_acc,
+                                "Generator_B": G_B_acc,
+                                "Discriminator_A_real": real_D_A_acc,
+                                "Discriminator_A_fake": fake_D_A_acc,
+                                "Discriminator_B_real": real_D_B_acc,
+                                "Discriminator_B_fake": fake_D_B_acc,
+                                "cycle_A": A_cycle,
+                                "cycle_B": B_cycle,
+                            }
                         if opt.perceptual:
                             loss_adv_dict["Perceptual_A"] = A_perceptual_loss
                             loss_granular_dict["Perceptual_A"] = A_perceptual_loss
@@ -1144,18 +1167,18 @@ if __name__ == '__main__':
 
                             # "Losses"
                             # Discriminator
-                            val_D_B_loss, _, _, _, val_fake_D_B_out = discriminator_loss(gen_images=val_fake_B,
+                            val_D_B_loss, val_real_D_B_acc, val_fake_D_B_acc, _, val_fake_D_B_out = discriminator_loss(gen_images=val_fake_B,
                                                                                          real_images=val_real_B,
                                                                                          discriminator=D_B,
                                                                                          real_label_flip_chance=0.0)
-                            val_D_A_loss, _, _, _, val_fake_D_A_out = discriminator_loss(gen_images=val_fake_A,
+                            val_D_A_loss, val_real_D_A_acc, val_fake_D_A_acc, _, val_fake_D_A_out = discriminator_loss(gen_images=val_fake_A,
                                                                                          real_images=val_real_A,
                                                                                          discriminator=D_A,
                                                                                          real_label_flip_chance=0.0)
 
                             # Generator
-                            val_G_A_loss = generator_loss(gen_images=val_fake_B, discriminator=D_B)
-                            val_G_B_loss = generator_loss(gen_images=val_fake_A, discriminator=D_A)
+                            val_G_A_loss, val_G_A_acc = generator_loss(gen_images=val_fake_B, discriminator=D_B)
+                            val_G_B_loss, val_G_B_acc = generator_loss(gen_images=val_fake_A, discriminator=D_A)
 
                             # Cycle losses: G_A and G_B
                             val_A_cycle = criterionCycleA(val_rec_A, val_real_A)
@@ -1177,18 +1200,34 @@ if __name__ == '__main__':
                                 val_total_G_loss = val_G_A_loss + val_G_B_loss + val_A_cycle + val_B_cycle
 
                         # Graphs
-                        val_loss_adv_dict = {
-                            "Generator_A": val_G_A_loss,
-                            "Generator_B": val_G_B_loss,
-                            "Discriminator_A": val_D_A_loss,
-                            "Discriminator_B": val_D_B_loss,
-                        }
-                        val_loss_granular_dict = {
-                            "Generator_A": val_G_A_loss,
-                            "Generator_B": val_G_B_loss,
-                            "Discriminator_A": val_D_A_loss,
-                            "Discriminator_B": val_D_B_loss,
-                        }
+                        if opt.adversarial_loss_plot:
+                            val_loss_adv_dict = {
+                                "Generator_A": val_G_A_loss,
+                                "Generator_B": val_G_B_loss,
+                                "Discriminator_A": val_D_A_loss,
+                                "Discriminator_B": val_D_B_loss,
+                            }
+                            val_loss_granular_dict = {
+                                "Generator_A": val_G_A_loss,
+                                "Generator_B": val_G_B_loss,
+                                "Discriminator_A": val_D_A_loss,
+                                "Discriminator_B": val_D_B_loss,
+                            }
+                        else:
+                            val_loss_adv_dict = {
+                                "Generator_A": val_G_A_acc,
+                                "Generator_B": val_G_B_acc,
+                                "Discriminator_A": (val_real_D_A_acc + val_fake_D_A_acc) / 2,
+                                "Discriminator_B": (val_real_D_B_acc + val_fake_D_B_acc) / 2,
+                            }
+                            val_loss_granular_dict = {
+                                "Generator_A": val_G_A_acc,
+                                "Generator_B": val_G_B_acc,
+                                "Discriminator_A_real": val_real_D_A_acc,
+                                "Discriminator_A_fake": val_fake_D_A_acc,
+                                "Discriminator_B_real": val_real_D_B_acc,
+                                "Discriminator_B_fake": val_fake_D_B_acc,
+                            }
                         if opt.perceptual:
                             val_loss_adv_dict["Perceptual_A"] = val_A_perceptual_loss
                             val_loss_granular_dict["Perceptual_A"] = val_A_perceptual_loss
