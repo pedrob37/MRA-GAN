@@ -1027,13 +1027,13 @@ if __name__ == '__main__':
                                                   "cycle_B": B_cycle,
                                                   }
                         else:
-                            val_loss_adv_dict = {
+                            loss_adv_dict = {
                                 "Generator_A": G_A_acc,
                                 "Generator_B": G_B_acc,
                                 "Discriminator_A": (real_D_A_acc + fake_D_A_acc) / 2,
                                 "Discriminator_B": (real_D_B_acc + fake_D_B_acc) / 2,
                             }
-                            val_loss_granular_dict = {
+                            loss_granular_dict = {
                                 "Generator_A": G_A_acc,
                                 "Generator_B": G_B_acc,
                                 "Discriminator_A_real": real_D_A_acc,
