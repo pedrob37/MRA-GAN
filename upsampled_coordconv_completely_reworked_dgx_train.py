@@ -944,7 +944,8 @@ if __name__ == '__main__':
                             real_label_flip_chance=opt.label_flipping_chance)
 
                         # if overall_disc_acc < disc_acc_thr_upper:
-                        D_optimizer.zero_grad()
+                        if train_D_A or train_D_B:
+                            D_optimizer.zero_grad()
 
                         # Propagate + Log
                         if train_D_B:
@@ -977,7 +978,8 @@ if __name__ == '__main__':
                         overall_D_A_acc = (agg_real_D_A_acc + agg_fake_D_A_acc) / 2
 
                     # Generator training
-                    G_optimizer.zero_grad()
+                    if train_G_A or train_G_B:
+                        G_optimizer.zero_grad()
 
                     # with torch.cuda.amp.autocast(enabled=True):
                     # Train Generator: Always do this or make it threshold based as well?
