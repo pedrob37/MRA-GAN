@@ -203,7 +203,7 @@ if __name__ == '__main__':
 
         # Calculate accuracies for every discriminator
         real_disc_accuracy = torch.mean(real_disc_prediction[0][0].float())
-        fake_disc_accuracy = torch.mean(fake_disc_prediction[0][0].float())
+        fake_disc_accuracy = 1 - torch.mean(fake_disc_prediction[0][0].float())
 
         # real_disc_sum_ds1 = real_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[0][0][
         #     0, ...].nelement()
@@ -319,7 +319,7 @@ if __name__ == '__main__':
         # gen_sum_ds1 = output[0][0].float().sum(axis=(1, 2, 3, 4)) / output[0][0][0, ...].nelement()
         # gen_acc_ds1 = ((gen_sum_ds1 > 0.5) == round(real_label)).float().sum() / gen_images.shape[0]
 
-        gen_acc_ds1 = torch.mean(output[0][0].float())
+        gen_acc_ds1 = 1 - torch.mean(output[0][0].float())
 
         return gen_fake_loss, gen_acc_ds1
 
