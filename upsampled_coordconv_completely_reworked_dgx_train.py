@@ -778,14 +778,14 @@ if __name__ == '__main__':
 
         if opt.phase == "train":
             # Training + validation loaders
-            train_ds = monai.data.Dataset(data=train_data_dict,
-                                          transform=train_transforms,
-                                          # cache_dir=CACHE_DIR
-                                          )
-            # train_ds = monai.data.PersistentDataset(data=train_data_dict,
-            #                                         transform=train_transforms,
-            #                                         cache_dir=CACHE_DIR
-            #                                         )
+            # train_ds = monai.data.Dataset(data=train_data_dict,
+            #                               transform=train_transforms,
+            #                               # cache_dir=CACHE_DIR
+            #                               )
+            train_ds = monai.data.PersistentDataset(data=train_data_dict,
+                                                    transform=train_transforms,
+                                                    cache_dir=CACHE_DIR
+                                                    )
 
             train_loader = DataLoader(dataset=train_ds,
                                       batch_size=opt.batch_size,
@@ -793,14 +793,14 @@ if __name__ == '__main__':
                                       num_workers=opt.workers,
                                       )
 
-            val_ds = monai.data.Dataset(data=val_data_dict,
-                                        transform=val_transforms,
-                                        # cache_dir=CACHE_DIR
-                                        )
-            # val_ds = monai.data.PersistentDataset(data=val_data_dict,
-            #                                       transform=val_transforms,
-            #                                       cache_dir=CACHE_DIR
-            #                                       )
+            # val_ds = monai.data.Dataset(data=val_data_dict,
+            #                             transform=val_transforms,
+            #                             # cache_dir=CACHE_DIR
+            #                             )
+            val_ds = monai.data.PersistentDataset(data=val_data_dict,
+                                                  transform=val_transforms,
+                                                  cache_dir=CACHE_DIR
+                                                  )
 
             val_loader = DataLoader(dataset=val_ds,
                                     batch_size=opt.batch_size,
