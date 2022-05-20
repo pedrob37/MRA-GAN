@@ -44,6 +44,8 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--disc_beta1', type=float, default=0.5, help='Discriminator momentum term of adam')
         parser.add_argument('--gen_lr', type=float, default=0.0002, help='Generator initial learning rate for adam')
         parser.add_argument('--disc_lr', type=float, default=0.0002, help='Discriminator initial learning rate for adam')
+        parser.add_argument('--disc_threshold_low', type=float, default=0.65, help='Discriminator training LB')
+        parser.add_argument('--disc_threshold_high', type=float, default=0.85, help='Discriminator training UB')
         parser.add_argument('--no_lsgan', type=self.str2bool, nargs='?', const=True, default=False, help='do *not* use least square GAN, if false, use vanilla GAN')
         parser.add_argument('--pool_size', type=int, default=50, help='the size of image buffer that stores previously generated images')
         parser.add_argument('--no_html', action='store_true', help='do not save intermediate training results to [opt.checkpoints_dir]/[opt.name]/web/')

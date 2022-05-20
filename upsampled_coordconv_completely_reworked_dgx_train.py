@@ -202,30 +202,39 @@ if __name__ == '__main__':
         genloss = multiscale_discriminator_loss(fake_disc_prediction, target_is_real=False)
 
         # Calculate accuracies for every discriminator
-        real_disc_sum_ds1 = real_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[0][0][
-            0, ...].nelement()
-        fake_disc_sum_ds1 = fake_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[0][0][
-            0, ...].nelement()
+        real_disc_accuracy = torch.mean(real_disc_prediction[0][0].float())
+        fake_disc_accuracy = torch.mean(fake_disc_prediction[0][0].float())
 
-        real_disc_accuracy_ds1 = ((real_disc_sum_ds1 > 0.5) == round(real_label)).float().sum() / real_images.shape[0]
-        fake_disc_accuracy_ds1 = ((fake_disc_sum_ds1 > 0.5) == fake_label).float().sum() / real_images.shape[0]
-        if opt.n_D == 2:
-            real_disc_sum_ds2 = real_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[1][0][
-                0, ...].nelement()
-            fake_disc_sum_ds2 = fake_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[1][0][
-                0, ...].nelement()
-            real_disc_accuracy_ds2 = ((real_disc_sum_ds2 > 0.5) == real_label).float().sum() / real_images.shape[0]
-            fake_disc_accuracy_ds2 = ((fake_disc_sum_ds2 > 0.5) == fake_label).float().sum() / real_images.shape[0]
+        # real_disc_sum_ds1 = real_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[0][0][
+        #     0, ...].nelement()
+        # fake_disc_sum_ds1 = fake_disc_prediction[0][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[0][0][
+        #     0, ...].nelement()
 
-            real_disc_accuracy = (real_disc_accuracy_ds1 + real_disc_accuracy_ds2) / 2
-            fake_disc_accuracy = (fake_disc_accuracy_ds1 + fake_disc_accuracy_ds2) / 2
-        elif opt.n_D == 1:
-            real_disc_accuracy = real_disc_accuracy_ds1
-            fake_disc_accuracy = fake_disc_accuracy_ds1
+        # print("Real, Fake Accs:", torch.mean(real_disc_prediction[0][0].float()), torch.mean(fake_disc_prediction[0][0].float()))
+
+        # real_disc_accuracy = ((real_disc_sum_ds1 > 0.5) == round(real_label)).float().sum() / real_images.shape[0]
+        # fake_disc_accuracy = ((fake_disc_sum_ds1 > 0.5) == fake_label).float().sum() / real_images.shape[0]
+        # print("Real, Fake Sums:", real_disc_sum_ds1.detach().item(), fake_disc_sum_ds1.detach().item())
+        # print("Real, Fake Accs:", real_disc_accuracy_ds1.detach().item(), fake_disc_accuracy_ds1.detach().item())
+        # if opt.n_D == 2:
+        #     real_disc_sum_ds2 = real_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / real_disc_prediction[1][0][
+        #         0, ...].nelement()
+        #     fake_disc_sum_ds2 = fake_disc_prediction[1][0].float().sum(axis=(1, 2, 3, 4)) / fake_disc_prediction[1][0][
+        #         0, ...].nelement()
+        #     real_disc_accuracy_ds2 = ((real_disc_sum_ds2 > 0.5) == real_label).float().sum() / real_images.shape[0]
+        #     fake_disc_accuracy_ds2 = ((fake_disc_sum_ds2 > 0.5) == fake_label).float().sum() / real_images.shape[0]
+        #
+        #     real_disc_accuracy = (real_disc_accuracy_ds1 + real_disc_accuracy_ds2) / 2
+        #     fake_disc_accuracy = (fake_disc_accuracy_ds1 + fake_disc_accuracy_ds2) / 2
+        # elif opt.n_D == 1:
+        #     real_disc_accuracy = real_disc_accuracy_ds1
+        #     fake_disc_accuracy = fake_disc_accuracy_ds1
+        # print(real_disc_accuracy.detach().cpu().item())
 
         return (genloss + realloss) / 2, \
-               real_disc_accuracy, \
-               fake_disc_accuracy, \
+               real_disc_accuracy.cpu().detach().item(), \
+               fake_disc_accuracy.cpu().detach().item(), \
+               (real_disc_accuracy.cpu().detach().item() + fake_disc_accuracy.cpu().detach().item()) / 2, \
                real_disc_prediction, fake_disc_prediction
 
 
@@ -307,8 +316,10 @@ if __name__ == '__main__':
         gen_fake_loss = multiscale_discriminator_loss(output, target_is_real=True)
 
         # Calculate accuracies for every discriminator
-        gen_sum_ds1 = output[0][0].float().sum(axis=(1, 2, 3, 4)) / output[0][0][0, ...].nelement()
-        gen_acc_ds1 = ((gen_sum_ds1 > 0.5) == round(real_label)).float().sum() / gen_images.shape[0]
+        # gen_sum_ds1 = output[0][0].float().sum(axis=(1, 2, 3, 4)) / output[0][0][0, ...].nelement()
+        # gen_acc_ds1 = ((gen_sum_ds1 > 0.5) == round(real_label)).float().sum() / gen_images.shape[0]
+
+        gen_acc_ds1 = torch.mean(output[0][0].float())
 
         return gen_fake_loss, gen_acc_ds1
 
@@ -503,6 +514,8 @@ if __name__ == '__main__':
     # Other variables
     val_gap = 5
     LOAD = True
+    D_A_acc = None
+    D_B_acc = None
 
     # Folds
     for fold in range(num_folds):
@@ -528,11 +541,11 @@ if __name__ == '__main__':
         # Discriminators
         D_A = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
                                              opt.n_layers_D,
-                                             nn.InstanceNorm3d, False, opt.n_D, False)
+                                             nn.InstanceNorm3d, True, opt.n_D, False)
 
         D_B = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
                                              opt.n_layers_D,
-                                             nn.InstanceNorm3d, False, opt.n_D, False)
+                                             nn.InstanceNorm3d, True, opt.n_D, False)
 
         # Associated variables
         G_A = nn.DataParallel(G_A)
@@ -765,10 +778,14 @@ if __name__ == '__main__':
 
         if opt.phase == "train":
             # Training + validation loaders
-            train_ds = monai.data.PersistentDataset(data=train_data_dict,
-                                                    transform=train_transforms,
-                                                    cache_dir=CACHE_DIR
-                                                    )
+            train_ds = monai.data.Dataset(data=train_data_dict,
+                                          transform=train_transforms,
+                                          # cache_dir=CACHE_DIR
+                                          )
+            # train_ds = monai.data.PersistentDataset(data=train_data_dict,
+            #                                         transform=train_transforms,
+            #                                         cache_dir=CACHE_DIR
+            #                                         )
 
             train_loader = DataLoader(dataset=train_ds,
                                       batch_size=opt.batch_size,
@@ -776,10 +793,14 @@ if __name__ == '__main__':
                                       num_workers=opt.workers,
                                       )
 
-            val_ds = monai.data.PersistentDataset(data=val_data_dict,
-                                                  transform=val_transforms,
-                                                  cache_dir=CACHE_DIR
-                                                  )
+            val_ds = monai.data.Dataset(data=val_data_dict,
+                                        transform=val_transforms,
+                                        # cache_dir=CACHE_DIR
+                                        )
+            # val_ds = monai.data.PersistentDataset(data=val_data_dict,
+            #                                       transform=val_transforms,
+            #                                       cache_dir=CACHE_DIR
+            #                                       )
 
             val_loader = DataLoader(dataset=val_ds,
                                     batch_size=opt.batch_size,
@@ -827,6 +848,38 @@ if __name__ == '__main__':
                         t_data = iter_start_time - iter_data_time
                     visualizer.reset()
 
+                    # Determine whether to train D, G, both, or neither
+                    if D_A_acc is None:
+                        train_D_A = True
+                        train_G_A = True
+                    elif opt.disc_threshold_low <= D_A_acc <= opt.disc_threshold_high:
+                        train_D_A = True
+                        train_G_A = True
+                    elif D_A_acc < opt.disc_threshold_low:
+                        train_D_A = True
+                        train_G_A = False
+                    elif D_A_acc > opt.disc_threshold_high:
+                        train_D_A = False
+                        train_G_A = True
+                    else:
+                        Warning("Non numeric accuracy.")
+
+                    # Determine whether to train D, G, both, or neither
+                    if D_B_acc is None:
+                        train_D_B = True
+                        train_G_B = True
+                    elif opt.disc_threshold_low <= D_B_acc <= opt.disc_threshold_high:
+                        train_D_B = True
+                        train_G_B = True
+                    elif D_B_acc < opt.disc_threshold_low:
+                        train_D_B = True
+                        train_G_B = False
+                    elif D_B_acc > opt.disc_threshold_high:
+                        train_D_B = False
+                        train_G_B = True
+                    else:
+                        Warning("Non numeric accuracy.")
+
                     # Training variables: Global
                     total_steps += opt.batch_size
                     epoch_iter += opt.batch_size
@@ -866,58 +919,52 @@ if __name__ == '__main__':
                         # Reconstructed B
                         rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
 
-                    # save_img(real_A.cpu().detach().squeeze().numpy(), None, os.path.join(FIG_DIR, f"{total_steps}_real_A.nii.gz"))
-                    # save_img(real_B.cpu().detach().squeeze().numpy(), None, os.path.join(FIG_DIR, f"{total_steps}_real_B.nii.gz"))
-                    # save_img(real_T1.cpu().detach().squeeze().numpy(), None, os.path.join(FIG_DIR, f"{total_steps}_real_T1.nii.gz"))
-
-                    # Identity
-                    # idt_A = G_A(real_B)
-                    # idt_B = G_B(real_A)
-
                     # Training
                     # Only begin to train discriminator after model has started to converge
-                    if epoch >= 0:
-                        adv_start = time.time()
-                        D_A_total_loss = torch.zeros(1, )
-                        D_B_total_loss = torch.zeros(1, )
-                        agg_real_D_A_acc = 0
-                        agg_fake_D_A_acc = 0
-                        agg_real_D_B_acc = 0
-                        agg_fake_D_B_acc = 0
-                        # Always have to do at least one run otherwise how is accuracy calculated?
-                        for _ in range(1):
-                            # Update discriminator by looping N times
-                            # with torch.cuda.amp.autocast(enabled=True):
-                            D_B_loss, real_D_B_acc, fake_D_B_acc, _, fake_D_B_out = discriminator_loss(
-                                gen_images=fake_B,
-                                real_images=real_B,
-                                discriminator=D_B,
-                                real_label_flip_chance=opt.label_flipping_chance)
-                            D_A_loss, real_D_A_acc, fake_D_A_acc, _, fake_D_A_out = discriminator_loss(
-                                gen_images=fake_A,
-                                real_images=real_A,
-                                discriminator=D_A,
-                                real_label_flip_chance=opt.label_flipping_chance)
+                    adv_start = time.time()
+                    D_A_total_loss = torch.zeros(1, )
+                    D_B_total_loss = torch.zeros(1, )
+                    agg_real_D_A_acc = 0
+                    agg_fake_D_A_acc = 0
+                    agg_real_D_B_acc = 0
+                    agg_fake_D_B_acc = 0
+                    # Always have to do at least one run otherwise how is accuracy calculated?
+                    for _ in range(1):
+                        # Update discriminator by looping N times
+                        # with torch.cuda.amp.autocast(enabled=True):
+                        D_B_loss, real_D_B_acc, fake_D_B_acc, D_B_acc, _, fake_D_B_out = discriminator_loss(
+                            gen_images=fake_B,
+                            real_images=real_B,
+                            discriminator=D_B,
+                            real_label_flip_chance=opt.label_flipping_chance)
+                        D_A_loss, real_D_A_acc, fake_D_A_acc, D_A_acc, _, fake_D_A_out = discriminator_loss(
+                            gen_images=fake_A,
+                            real_images=real_A,
+                            discriminator=D_A,
+                            real_label_flip_chance=opt.label_flipping_chance)
 
-                            # if overall_disc_acc < disc_acc_thr_upper:
-                            D_optimizer.zero_grad()
+                        # if overall_disc_acc < disc_acc_thr_upper:
+                        D_optimizer.zero_grad()
 
-                            # Propagate + Log
+                        # Propagate + Log
+                        if train_D_B:
                             D_B_loss.backward()
+                        if train_D_A:
                             D_A_loss.backward()
+                        if train_D_A or train_D_B:
                             D_optimizer.step()
 
-                            # Log
-                            D_B_total_loss += D_B_loss.item()
-                            D_A_total_loss += D_A_loss.item()
+                        # Log
+                        D_B_total_loss += D_B_loss.item()
+                        D_A_total_loss += D_A_loss.item()
 
-                            # Aggregate accuracy: D_B
-                            agg_real_D_B_acc += real_D_B_acc
-                            agg_fake_D_B_acc += fake_D_B_acc
+                        # Aggregate accuracy: D_B
+                        agg_real_D_B_acc += real_D_B_acc
+                        agg_fake_D_B_acc += fake_D_B_acc
 
-                            # Aggregate accuracy: D_A
-                            agg_real_D_A_acc += real_D_A_acc
-                            agg_fake_D_A_acc += fake_D_A_acc
+                        # Aggregate accuracy: D_A
+                        agg_real_D_A_acc += real_D_A_acc
+                        agg_fake_D_A_acc += fake_D_A_acc
 
                         # D_B
                         agg_real_D_B_acc = agg_real_D_B_acc / 1
@@ -929,52 +976,71 @@ if __name__ == '__main__':
                         agg_fake_D_A_acc = agg_fake_D_A_acc / 1
                         overall_D_A_acc = (agg_real_D_A_acc + agg_fake_D_A_acc) / 2
 
-                        # Generator training
-                        G_optimizer.zero_grad()
+                    # Generator training
+                    G_optimizer.zero_grad()
 
-                        # with torch.cuda.amp.autocast(enabled=True):
-                        # Train Generator: Always do this or make it threshold based as well?
-                        G_A_loss, G_A_acc = generator_loss(gen_images=fake_B, discriminator=D_B)
-                        G_B_loss, G_B_acc = generator_loss(gen_images=fake_A, discriminator=D_A)
+                    # with torch.cuda.amp.autocast(enabled=True):
+                    # Train Generator: Always do this or make it threshold based as well?
+                    G_A_loss, G_A_acc = generator_loss(gen_images=fake_B, discriminator=D_B)
+                    G_B_loss, G_B_acc = generator_loss(gen_images=fake_A, discriminator=D_A)
 
-                        # Cycle losses: G_A and G_B
-                        A_cycle = criterionCycleA(rec_A, real_A)
-                        B_cycle = criterionCycleB(rec_B, real_B)
+                    # Cycle losses: G_A and G_B
+                    A_cycle = criterionCycleA(rec_A, real_A)
+                    B_cycle = criterionCycleB(rec_B, real_B)
 
-                        # Idt losses
-                        # idt_A_loss = criterionIdt(idt_A, real_B)
-                        # idt_B_loss = criterionIdt(idt_B, real_A)
+                    # Idt losses
+                    # idt_A_loss = criterionIdt(idt_A, real_B)
+                    # idt_B_loss = criterionIdt(idt_B, real_A)
 
-                        # Total loss
-                        if opt.perceptual and not opt.msssim:
-                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net,
-                                                                opt.patch_size) * opt.perceptual_weighting
-                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_perceptual_loss
-                        elif not opt.perceptual and opt.msssim:
-                            A_msssim_loss = criterionMSSSIM(real_A, rec_A) * opt.msssim_weighting
-                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss
-                        elif opt.perceptual and opt.msssim:
-                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net,
-                                                                opt.patch_size) * opt.perceptual_weighting
-                            A_msssim_loss = criterionMSSSIM(real_A, rec_A) * opt.msssim_weighting
-                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss + A_perceptual_loss
-                        else:
-                            total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
+                    # Total loss
+                    if opt.perceptual and not opt.msssim:
+                        A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net,
+                                                            opt.patch_size) * opt.perceptual_weighting
+                        total_G_A_loss = G_A_loss + A_cycle + A_perceptual_loss
+                        total_G_B_loss = G_B_loss + B_cycle
+                        # total_G_loss = G_A_loss + A_cycle + A_perceptual_loss + G_B_loss + B_cycle
+                    elif not opt.perceptual and opt.msssim:
+                        A_msssim_loss = criterionMSSSIM(real_A, rec_A) * opt.msssim_weighting
+                        total_G_A_loss = G_A_loss + A_cycle + A_msssim_loss
+                        total_G_B_loss = G_B_loss + B_cycle
+                        # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss
+                    elif opt.perceptual and opt.msssim:
+                        A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net,
+                                                            opt.patch_size) * opt.perceptual_weighting
+                        A_msssim_loss = criterionMSSSIM(real_A, rec_A) * opt.msssim_weighting
+                        total_G_A_loss = G_A_loss + A_cycle + A_msssim_loss + A_perceptual_loss
+                        total_G_B_loss = G_B_loss + B_cycle
+                        # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss + A_perceptual_loss
+                    else:
+                        total_G_A_loss = G_A_loss + A_cycle
+                        total_G_B_loss = G_B_loss + B_cycle
+                        # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
 
-                        # Backward
-                        total_G_loss.backward()
+                    # Backward
+                    if train_G_A:
+                        total_G_A_loss.backward()
+                    if train_G_B:
+                        total_G_B_loss.backward()
+                    # total_G_loss.backward()
 
-                        # G optimization
+                    # G optimization
+                    if train_G_A or train_G_B:
                         G_optimizer.step()
 
-                        if opt.perceptual and opt.msssim:
-                            print(f"Percep: {A_perceptual_loss.cpu().detach().tolist():.3f}, "
-                                  f"MS-SSIM: {A_msssim_loss.cpu().detach().tolist()[0][0]:.3f}, "
-                                  f"G_A: {G_A_loss.cpu().detach().tolist():.3f}, "
-                                  f"G_B: {G_B_loss.cpu().detach().tolist():.3f}, "
-                                  f"cycle_A: {A_cycle.cpu().detach().tolist():.3f}, "
-                                  f"cycle_B: {B_cycle.cpu().detach().tolist():.3f}"
-                                  )
+                    if opt.perceptual and opt.msssim:
+                        print(f"Percep: {A_perceptual_loss.cpu().detach().tolist():.3f}, "
+                              f"MS-SSIM: {A_msssim_loss.cpu().detach().tolist()[0][0]:.3f}, "
+                              f"G_A: {G_A_loss.cpu().detach().tolist():.3f}, "
+                              f"G_B: {G_B_loss.cpu().detach().tolist():.3f}, "
+                              f"cycle_A: {A_cycle.cpu().detach().tolist():.3f}, "
+                              f"cycle_B: {B_cycle.cpu().detach().tolist():.3f}"
+                              )
+
+                    if running_iter % 20 == 0:
+                        print(f"D_A Real Acc: {real_D_A_acc:.3f}")
+                        print(f"D_A Fake Acc: {fake_D_A_acc:.3f}")
+                        print(f"D_B Real Acc: {real_D_B_acc:.3f}")
+                        print(f"D_B Fake Acc: {fake_D_B_acc:.3f}")
 
                     # if total_steps % opt.print_freq == 0:
                     if total_steps % opt.save_latest_freq == 0:
@@ -1015,23 +1081,23 @@ if __name__ == '__main__':
                         # Graphs
                         if opt.adversarial_loss_plot:
                             loss_adv_dict = {  # "Total_G_loss": total_G_loss,
-                                             "Generator_A": G_A_loss,
-                                             "Generator_B": G_B_loss,
-                                             "Discriminator_A": D_A_loss,
-                                             "Discriminator_B": D_B_loss,
-                                             }
+                                "Generator_A": G_A_loss,
+                                "Generator_B": G_B_loss,
+                                "Discriminator_A": D_A_loss,
+                                "Discriminator_B": D_B_loss,
+                            }
                             loss_granular_dict = {  # "total_G_loss": total_G_loss,
-                                                  "Generator_A": G_A_loss,
-                                                  "Generator_B": G_B_loss,
-                                                  "cycle_A": A_cycle,
-                                                  "cycle_B": B_cycle,
-                                                  }
+                                "Generator_A": G_A_loss,
+                                "Generator_B": G_B_loss,
+                                "cycle_A": A_cycle,
+                                "cycle_B": B_cycle,
+                            }
                         else:
                             loss_adv_dict = {
                                 "Generator_A": G_A_acc,
                                 "Generator_B": G_B_acc,
-                                "Discriminator_A": (real_D_A_acc + fake_D_A_acc) / 2,
-                                "Discriminator_B": (real_D_B_acc + fake_D_B_acc) / 2,
+                                "Discriminator_A": D_A_acc,
+                                "Discriminator_B": D_B_acc,
                             }
                             loss_granular_dict = {
                                 "Generator_A": G_A_acc,
@@ -1113,15 +1179,34 @@ if __name__ == '__main__':
                     running_iter += 1
 
                     # Clean-up
-                    del real_A, real_B, train_sample, rec_A, rec_B
+                    del real_A, real_B, train_sample, rec_A, rec_B, train_coords, fake_D_A_out, fake_D_B_out
                     if opt.t1_aid:
                         del real_T1
+                    # import gc
+                    #
+                    # for obj in gc.get_objects():
+                    #     try:
+                    #         if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                    #             print(type(obj), obj.size())
+                    #     except:
+                    #         pass
 
                 if epoch % val_gap == 0:
                     G_A.eval()
                     G_B.eval()
                     D_A.eval()
                     D_B.eval()
+
+                    val_agg_real_D_A_acc = []
+                    val_agg_fake_D_A_acc = []
+                    val_agg_real_D_B_acc = []
+                    val_agg_fake_D_B_acc = []
+
+                    val_agg_D_A_acc = []
+                    val_agg_D_B_acc = []
+
+                    val_agg_G_A_acc = []
+                    val_agg_G_B_acc = []
                     with torch.no_grad():
                         for val_sample in val_loader:
                             # Validation variables
@@ -1161,24 +1246,37 @@ if __name__ == '__main__':
                                 # Reconstructed B
                                 val_rec_B = G_A(torch.cat((val_fake_A, val_coords), dim=1))
 
-                            # Identity
-                            # val_idt_A = G_A(val_real_B)
-                            # val_idt_B = G_B(val_real_A)
-
                             # "Losses"
                             # Discriminator
-                            val_D_B_loss, val_real_D_B_acc, val_fake_D_B_acc, _, val_fake_D_B_out = discriminator_loss(gen_images=val_fake_B,
-                                                                                         real_images=val_real_B,
-                                                                                         discriminator=D_B,
-                                                                                         real_label_flip_chance=0.0)
-                            val_D_A_loss, val_real_D_A_acc, val_fake_D_A_acc, _, val_fake_D_A_out = discriminator_loss(gen_images=val_fake_A,
-                                                                                         real_images=val_real_A,
-                                                                                         discriminator=D_A,
-                                                                                         real_label_flip_chance=0.0)
+                            val_D_B_loss, val_real_D_B_acc, val_fake_D_B_acc, val_D_B_acc, _, val_fake_D_B_out = discriminator_loss(
+                                gen_images=val_fake_B,
+                                real_images=val_real_B,
+                                discriminator=D_B,
+                                real_label_flip_chance=0.0)
+                            val_D_A_loss, val_real_D_A_acc, val_fake_D_A_acc, val_D_A_acc, _, val_fake_D_A_out = discriminator_loss(
+                                gen_images=val_fake_A,
+                                real_images=val_real_A,
+                                discriminator=D_A,
+                                real_label_flip_chance=0.0)
 
                             # Generator
                             val_G_A_loss, val_G_A_acc = generator_loss(gen_images=val_fake_B, discriminator=D_B)
                             val_G_B_loss, val_G_B_acc = generator_loss(gen_images=val_fake_A, discriminator=D_A)
+
+                            # Aggregate accuracies
+                            # Aggregate accuracy: D_B
+                            val_agg_real_D_B_acc.append(real_D_B_acc)
+                            val_agg_fake_D_B_acc.append(fake_D_B_acc)
+                            val_agg_D_B_acc.append(val_D_B_acc)
+
+                            # Aggregate accuracy: D_A
+                            val_agg_real_D_A_acc.append(real_D_A_acc)
+                            val_agg_fake_D_A_acc.append(fake_D_A_acc)
+                            val_agg_D_A_acc.append(val_D_A_acc)
+
+                            # Aggregate accuracy: G_A and G_B
+                            val_agg_G_A_acc.append(val_G_A_acc)
+                            val_agg_G_B_acc.append(val_G_B_acc)
 
                             # Cycle losses: G_A and G_B
                             val_A_cycle = criterionCycleA(val_rec_A, val_real_A)
@@ -1215,18 +1313,18 @@ if __name__ == '__main__':
                             }
                         else:
                             val_loss_adv_dict = {
-                                "Generator_A": val_G_A_acc,
-                                "Generator_B": val_G_B_acc,
-                                "Discriminator_A": (val_real_D_A_acc + val_fake_D_A_acc) / 2,
-                                "Discriminator_B": (val_real_D_B_acc + val_fake_D_B_acc) / 2,
+                                "Generator_A": np.mean(val_agg_G_A_acc),
+                                "Generator_B": np.mean(val_agg_G_B_acc),
+                                "Discriminator_A": np.mean(val_agg_D_A_acc),
+                                "Discriminator_B": np.mean(val_agg_D_B_acc),
                             }
-                            val_loss_granular_dict = {
-                                "Generator_A": val_G_A_acc,
-                                "Generator_B": val_G_B_acc,
-                                "Discriminator_A_real": val_real_D_A_acc,
-                                "Discriminator_A_fake": val_fake_D_A_acc,
-                                "Discriminator_B_real": val_real_D_B_acc,
-                                "Discriminator_B_fake": val_fake_D_B_acc,
+                            agg_loss_granular_dict = {
+                                "Generator_A": np.mean(val_agg_G_A_acc),
+                                "Generator_B": np.mean(val_agg_G_B_acc),
+                                "Discriminator_A_real": np.mean(val_agg_real_D_A_acc),
+                                "Discriminator_A_fake": np.mean(val_agg_fake_D_A_acc),
+                                "Discriminator_B_real": np.mean(val_agg_real_D_B_acc),
+                                "Discriminator_B_fake": np.mean(val_agg_fake_D_B_acc),
                             }
                         if opt.perceptual:
                             val_loss_adv_dict["Perceptual_A"] = val_A_perceptual_loss
@@ -1361,17 +1459,20 @@ if __name__ == '__main__':
                         # Pass inputs to generators
                         inf_real_T1 = inf_sample['T1'].cuda()
                         t1_name = os.path.basename(inf_sample["T1_meta_dict"]["filename_or_obj"][0])
-                        fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), (192, 224, 192), 1,
+                        fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), (192, 224, 192),
+                                                          1,
                                                           G_A,
                                                           overlap=overlap,
                                                           mode='gaussian')
-                        fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_real_T1, inf_coords), dim=1), (192, 224, 192),
+                        fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_real_T1, inf_coords), dim=1),
+                                                          (192, 224, 192),
                                                           1,
                                                           G_B,
                                                           overlap=overlap,
                                                           mode='gaussian')
 
-                        rec_A = sliding_window_inference(torch.cat((fake_B, inf_real_T1, inf_coords), dim=1), (192, 224, 192), 1,
+                        rec_A = sliding_window_inference(torch.cat((fake_B, inf_real_T1, inf_coords), dim=1),
+                                                         (192, 224, 192), 1,
                                                          G_B,
                                                          overlap=overlap,
                                                          mode='gaussian')
@@ -1384,10 +1485,12 @@ if __name__ == '__main__':
 
                     else:
                         # Pass inputs to generators
-                        fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), (192, 224, 192), 1, G_A,
+                        fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), (192, 224, 192),
+                                                          1, G_A,
                                                           overlap=overlap,
                                                           mode='gaussian')
-                        fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_coords), dim=1), (192, 224, 192), 1, G_B,
+                        fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_coords), dim=1), (192, 224, 192),
+                                                          1, G_B,
                                                           overlap=overlap,
                                                           mode='gaussian')
 
