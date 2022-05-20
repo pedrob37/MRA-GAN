@@ -922,8 +922,8 @@ if __name__ == '__main__':
                     # Training
                     # Only begin to train discriminator after model has started to converge
                     adv_start = time.time()
-                    D_A_total_loss = torch.zeros(1, )
-                    D_B_total_loss = torch.zeros(1, )
+                    # D_A_total_loss = torch.zeros(1, )
+                    # D_B_total_loss = torch.zeros(1, )
                     agg_real_D_A_acc = 0
                     agg_fake_D_A_acc = 0
                     agg_real_D_B_acc = 0
@@ -956,8 +956,8 @@ if __name__ == '__main__':
                             D_optimizer.step()
 
                         # Log
-                        D_B_total_loss += D_B_loss.item()
-                        D_A_total_loss += D_A_loss.item()
+                        # D_B_total_loss += D_B_loss.item()
+                        # D_A_total_loss += D_A_loss.item()
 
                         # Aggregate accuracy: D_B
                         agg_real_D_B_acc += real_D_B_acc
@@ -1183,6 +1183,11 @@ if __name__ == '__main__':
 
                     # Clean-up
                     del real_A, real_B, train_sample, rec_A, rec_B, train_coords, fake_D_A_out, fake_D_B_out
+                    del D_A_loss, D_B_loss, G_A_loss, G_B_loss, A_cycle, B_cycle
+                    if opt.perceptual:
+                        del A_perceptual_loss
+                    if opt.msssim:
+                        del A_msssim_loss
                     if opt.t1_aid:
                         del real_T1
                     # import gc
