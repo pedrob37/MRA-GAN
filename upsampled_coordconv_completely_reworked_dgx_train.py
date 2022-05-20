@@ -1036,10 +1036,11 @@ if __name__ == '__main__':
                               f"cycle_B: {B_cycle.cpu().detach().tolist():.3f}"
                               )
 
-                    if running_iter % 20 == 0:
+                    if running_iter % 100 == 0:
+                        print(f"\nIteration: {running_iter}")
                         print(f"D_A Real Acc: {real_D_A_acc:.3f}")
-                        print(f"D_A Fake Acc: {fake_D_A_acc:.3f}")
                         print(f"D_B Real Acc: {real_D_B_acc:.3f}")
+                        print(f"D_A Fake Acc: {fake_D_A_acc:.3f}")
                         print(f"D_B Fake Acc: {fake_D_B_acc:.3f}")
 
                     # if total_steps % opt.print_freq == 0:
