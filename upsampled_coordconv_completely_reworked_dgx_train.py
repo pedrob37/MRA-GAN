@@ -960,22 +960,22 @@ if __name__ == '__main__':
                         # D_A_total_loss += D_A_loss.item()
 
                         # Aggregate accuracy: D_B
-                        agg_real_D_B_acc += real_D_B_acc
-                        agg_fake_D_B_acc += fake_D_B_acc
-
-                        # Aggregate accuracy: D_A
-                        agg_real_D_A_acc += real_D_A_acc
-                        agg_fake_D_A_acc += fake_D_A_acc
-
-                        # D_B
-                        agg_real_D_B_acc = agg_real_D_B_acc / 1
-                        agg_fake_D_B_acc = agg_fake_D_B_acc / 1
-                        overall_D_B_acc = (agg_real_D_B_acc + agg_fake_D_B_acc) / 2
-
-                        # D_A
-                        agg_real_D_A_acc = agg_real_D_A_acc / 1
-                        agg_fake_D_A_acc = agg_fake_D_A_acc / 1
-                        overall_D_A_acc = (agg_real_D_A_acc + agg_fake_D_A_acc) / 2
+                        # agg_real_D_B_acc += real_D_B_acc
+                        # agg_fake_D_B_acc += fake_D_B_acc
+                        #
+                        # # Aggregate accuracy: D_A
+                        # agg_real_D_A_acc += real_D_A_acc
+                        # agg_fake_D_A_acc += fake_D_A_acc
+                        #
+                        # # D_B
+                        # agg_real_D_B_acc = agg_real_D_B_acc / 1
+                        # agg_fake_D_B_acc = agg_fake_D_B_acc / 1
+                        # overall_D_B_acc = (agg_real_D_B_acc + agg_fake_D_B_acc) / 2
+                        #
+                        # # D_A
+                        # agg_real_D_A_acc = agg_real_D_A_acc / 1
+                        # agg_fake_D_A_acc = agg_fake_D_A_acc / 1
+                        # overall_D_A_acc = (agg_real_D_A_acc + agg_fake_D_A_acc) / 2
 
                     # Generator training
                     if train_G_A or train_G_B:
@@ -983,12 +983,14 @@ if __name__ == '__main__':
 
                     # with torch.cuda.amp.autocast(enabled=True):
                     # Train Generator: Always do this or make it threshold based as well?
-                    G_A_loss, G_A_acc = generator_loss(gen_images=fake_B, discriminator=D_B)
-                    G_B_loss, G_B_acc = generator_loss(gen_images=fake_A, discriminator=D_A)
+                    if train_G_A:
+                        G_A_loss, G_A_acc = generator_loss(gen_images=fake_B, discriminator=D_B)
+                        A_cycle = criterionCycleA(rec_A, real_A)
+                    if train_G_B:
+                        G_B_loss, G_B_acc = generator_loss(gen_images=fake_A, discriminator=D_A)
+                        B_cycle = criterionCycleB(rec_B, real_B)
 
                     # Cycle losses: G_A and G_B
-                    A_cycle = criterionCycleA(rec_A, real_A)
-                    B_cycle = criterionCycleB(rec_B, real_B)
 
                     # Idt losses
                     # idt_A_loss = criterionIdt(idt_A, real_B)
@@ -996,27 +998,35 @@ if __name__ == '__main__':
 
                     # Total loss
                     if opt.perceptual and not opt.msssim:
-                        A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net,
-                                                            opt.patch_size) * opt.perceptual_weighting
-                        total_G_A_loss = G_A_loss + A_cycle + A_perceptual_loss
-                        total_G_B_loss = G_B_loss + B_cycle
-                        # total_G_loss = G_A_loss + A_cycle + A_perceptual_loss + G_B_loss + B_cycle
+                        if train_G_A:
+                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net,
+                                                                opt.patch_size) * opt.perceptual_weighting
+                            total_G_A_loss = G_A_loss + A_cycle + A_perceptual_loss
+                        if train_G_B:
+                            total_G_B_loss = G_B_loss + B_cycle
+                            # total_G_loss = G_A_loss + A_cycle + A_perceptual_loss + G_B_loss + B_cycle
                     elif not opt.perceptual and opt.msssim:
-                        A_msssim_loss = criterionMSSSIM(real_A, rec_A) * opt.msssim_weighting
-                        total_G_A_loss = G_A_loss + A_cycle + A_msssim_loss
-                        total_G_B_loss = G_B_loss + B_cycle
-                        # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss
+                        if train_G_A:
+                            A_msssim_loss = criterionMSSSIM(real_A, rec_A) * opt.msssim_weighting
+                            total_G_A_loss = G_A_loss + A_cycle + A_msssim_loss
+                        if train_G_B:
+                            total_G_B_loss = G_B_loss + B_cycle
+                            # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss
                     elif opt.perceptual and opt.msssim:
-                        A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net,
-                                                            opt.patch_size) * opt.perceptual_weighting
-                        A_msssim_loss = criterionMSSSIM(real_A, rec_A) * opt.msssim_weighting
-                        total_G_A_loss = G_A_loss + A_cycle + A_msssim_loss + A_perceptual_loss
-                        total_G_B_loss = G_B_loss + B_cycle
-                        # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss + A_perceptual_loss
+                        if train_G_A:
+                            A_perceptual_loss = perceptual_loss(real_A, rec_A, perceptual_net,
+                                                                opt.patch_size) * opt.perceptual_weighting
+                            A_msssim_loss = criterionMSSSIM(real_A, rec_A) * opt.msssim_weighting
+                            total_G_A_loss = G_A_loss + A_cycle + A_msssim_loss + A_perceptual_loss
+                        if train_G_B:
+                            total_G_B_loss = G_B_loss + B_cycle
+                            # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss + A_perceptual_loss
                     else:
-                        total_G_A_loss = G_A_loss + A_cycle
-                        total_G_B_loss = G_B_loss + B_cycle
-                        # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
+                        if train_G_A:
+                            total_G_A_loss = G_A_loss + A_cycle
+                        if train_G_B:
+                            total_G_B_loss = G_B_loss + B_cycle
+                            # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
 
                     # Backward
                     if train_G_A:
@@ -1183,7 +1193,7 @@ if __name__ == '__main__':
 
                     # Clean-up
                     del real_A, real_B, train_sample, rec_A, rec_B, train_coords, fake_D_A_out, fake_D_B_out
-                    del D_A_loss, D_B_loss, G_A_loss, G_B_loss, A_cycle, B_cycle
+                    # del D_A_loss, D_B_loss, G_A_loss, G_B_loss, A_cycle, B_cycle
                     if opt.perceptual:
                         del A_perceptual_loss
                     if opt.msssim:
