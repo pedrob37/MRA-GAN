@@ -842,8 +842,8 @@ if __name__ == '__main__':
 
                 # Iterations
                 for _, train_sample in enumerate(train_loader):
-                    print(torch.cuda.memory_allocated() / torch.cuda.max_memory_allocated())
-                    print(train_D_A, train_G_A, train_D_B, train_G_B)
+                    # print(torch.cuda.memory_allocated() / torch.cuda.max_memory_allocated())
+                    # print(train_D_A, train_G_A, train_D_B, train_G_B)
                     iter_start_time = time.time()
                     # print("LI, total_steps", logging_interval, total_steps)
                     if total_steps % opt.print_freq == 0:
