@@ -1041,6 +1041,8 @@ if __name__ == '__main__':
                     if train_G_A or train_G_B:
                         G_optimizer.step()
 
+                    break
+
                     if opt.perceptual and opt.msssim:
                         print(f"Percep: {A_perceptual_loss.cpu().detach().tolist():.3f}, "
                               f"MS-SSIM: {A_msssim_loss.cpu().detach().tolist()[0][0]:.3f}, "
@@ -1338,7 +1340,7 @@ if __name__ == '__main__':
                                 "Discriminator_A": np.mean(val_agg_D_A_acc),
                                 "Discriminator_B": np.mean(val_agg_D_B_acc),
                             }
-                            agg_loss_granular_dict = {
+                            val_loss_granular_dict = {
                                 "Generator_A": np.mean(val_agg_G_A_acc),
                                 "Generator_B": np.mean(val_agg_G_B_acc),
                                 "Discriminator_A_real": np.mean(val_agg_real_D_A_acc),
