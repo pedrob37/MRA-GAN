@@ -555,8 +555,8 @@ class NoisyNLayerDiscriminator3D(nn.Module):
                 if self.training and self.sigma != 0:
                     scale = self.sigma * x.detach() if self.is_relative_detach else self.sigma * x
                     sampled_noise = self.noise.repeat(*x.size()).normal_() * scale
-                    x = x + sampled_noise
-                return x
+                    y = x + sampled_noise
+                return y
 
         sequence = [[GaussianNoise(sigma=0.2, is_relative_detach=True)]]
         sequence += [[nn.Conv3d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw), nn.LeakyReLU(0.2, True)]]

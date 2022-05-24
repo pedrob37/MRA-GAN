@@ -24,6 +24,7 @@ from monai.transforms import (Compose,
                               ToTensord,
                               RandSpatialCropSamplesd,
                               RandWeightedCropd,
+                              SpatialCropd,
                               NormalizeIntensityd,
                               RandGaussianSmoothd,
                               RandGaussianNoiseD,
@@ -379,14 +380,19 @@ if __name__ == '__main__':
             else:
                 train_transform_list = [LoadImaged(keys=['image', 'label']),
                                         AddChanneld(keys=['image', 'label']),
-                                        CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
-                                        RandAffined(keys=["image", "label", "coords"],
-                                                    scale_range=(0.1, 0.1, 0.1),
-                                                    rotate_range=(0.25, 0.25, 0.25),
-                                                    translate_range=(20, 20, 20),
-                                                    mode=("bilinear", "nearest", "nearest"),
-                                                    as_tensor_output=False, prob=1.0,
-                                                    padding_mode=('zeros', 'zeros', 'border'))]
+                                        CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+                if opt.weighted_sampling == "cropped":
+                    train_transform_list.append(SpatialCropd(keys=['image', 'label', 'coords'],
+                                                             roi_size=(192, 224, 128),
+                                                             roi_center=(0, 0, 0)))
+
+                train_transform_list.append(RandAffined(keys=["image", "label", "coords"],
+                                                        scale_range=(0.1, 0.1, 0.1),
+                                                        rotate_range=(0.25, 0.25, 0.25),
+                                                        translate_range=(20, 20, 20),
+                                                        mode=("bilinear", "nearest", "nearest"),
+                                                        as_tensor_output=False, prob=1.0,
+                                                        padding_mode=('zeros', 'zeros', 'border')))
                 if opt.znorm:
                     train_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
         elif opt.augmentation_level == "none":
@@ -414,11 +420,15 @@ if __name__ == '__main__':
             val_transform_list = [LoadImaged(keys=['image', 'label']),
                                   AddChanneld(keys=['image', 'label']),
                                   CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+            if opt.weighted_sampling == "cropped":
+                val_transform_list.append(SpatialCropd(keys=['image', 'label', 'coords'],
+                                                       roi_size=(192, 224, 128),
+                                                       roi_center=(0, 0, 0)))
             if opt.znorm:
                 val_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
 
         # Extend remaining transforms
-        if opt.weighted_sampling:
+        if opt.weighted_sampling == "weighted":
             train_transform_list.extend([RandWeightedCropd(keys=crop_keys_list,
                                                            w_key='image',
                                                            spatial_size=(
@@ -431,6 +441,8 @@ if __name__ == '__main__':
                                                              opt.patch_size, opt.patch_size, 128),
                                                          num_samples=1),
                                        ToTensord(keys=crop_keys_list)])
+        elif opt.weighted_sampling == "cropped":
+            print("Cropping images, so no sampling necessary")
         else:
             train_transform_list.extend([RandSpatialCropSamplesd(keys=crop_keys_list,
                                                                  roi_size=(
@@ -887,17 +899,29 @@ if __name__ == '__main__':
                     epoch_iter += opt.batch_size
 
                     # Iteration-specific data
-                    real_A = train_sample[0]['image'].cuda()
-                    real_B = train_sample[0]['label'].cuda()
-                    train_coords = train_sample[0]['coords'].cuda()
+                    if opt.weighted_sampling == "cropped":
+                        real_A = train_sample['image'].cuda()
+                        real_B = train_sample['label'].cuda()
+                        train_coords = train_sample['coords'].cuda()
 
-                    # Names (Not needed for now)
-                    image_name = os.path.basename(train_sample[0]["image_meta_dict"]["filename_or_obj"][0])
-                    label_name = os.path.basename(train_sample[0]["label_meta_dict"]["filename_or_obj"][0])
+                        # Names (Not needed for now)
+                        image_name = os.path.basename(train_sample["image_meta_dict"]["filename_or_obj"][0])
+                        label_name = os.path.basename(train_sample["label_meta_dict"]["filename_or_obj"][0])
+                    else:
+                        real_A = train_sample[0]['image'].cuda()
+                        real_B = train_sample[0]['label'].cuda()
+                        train_coords = train_sample[0]['coords'].cuda()
+
+                        # Names (Not needed for now)
+                        image_name = os.path.basename(train_sample[0]["image_meta_dict"]["filename_or_obj"][0])
+                        label_name = os.path.basename(train_sample[0]["label_meta_dict"]["filename_or_obj"][0])
 
                     if opt.t1_aid:
                         # Pass inputs to model and optimise: Forward loop
-                        real_T1 = train_sample[0]['T1'].cuda()
+                        if opt.weighted_sampling == "cropped":
+                            real_T1 = train_sample['T1'].cuda()
+                        else:
+                            real_T1 = train_sample[0]['T1'].cuda()
                         fake_B = G_A(torch.cat((real_A, train_coords), dim=1))
                         # Pair fake B with fake z to generate rec_A: Add Coords as well and T1
                         if opt.cycle_noise:
@@ -1230,18 +1254,31 @@ if __name__ == '__main__':
                     with torch.no_grad():
                         for val_sample in val_loader:
                             # Validation variables
-                            val_real_A = val_sample[0]['image'].cuda()
-                            val_real_B = val_sample[0]['label'].cuda()
-                            val_coords = val_sample[0]['coords'].cuda()
+                            if opt.weighted_sampling == "cropped":
+                                val_real_A = val_sample['image'].cuda()
+                                val_real_B = val_sample['label'].cuda()
+                                val_coords = val_sample['coords'].cuda()
 
-                            image_name = os.path.basename(val_sample[0]["image_meta_dict"]["filename_or_obj"][0])
-                            label_name = os.path.basename(val_sample[0]["label_meta_dict"]["filename_or_obj"][0])
-                            val_affine = val_sample[0]['image_meta_dict']['affine'][0, ...]
-                            label_affine = val_sample[0]['label_meta_dict']['affine'][0, ...]
+                                image_name = os.path.basename(val_sample["image_meta_dict"]["filename_or_obj"][0])
+                                label_name = os.path.basename(val_sample["label_meta_dict"]["filename_or_obj"][0])
+                                val_affine = val_sample['image_meta_dict']['affine'][0, ...]
+                                label_affine = val_sample['label_meta_dict']['affine'][0, ...]
+                            else:
+                                val_real_A = val_sample[0]['image'].cuda()
+                                val_real_B = val_sample[0]['label'].cuda()
+                                val_coords = val_sample[0]['coords'].cuda()
+
+                                image_name = os.path.basename(val_sample[0]["image_meta_dict"]["filename_or_obj"][0])
+                                label_name = os.path.basename(val_sample[0]["label_meta_dict"]["filename_or_obj"][0])
+                                val_affine = val_sample[0]['image_meta_dict']['affine'][0, ...]
+                                label_affine = val_sample[0]['label_meta_dict']['affine'][0, ...]
 
                             # Forward
                             if opt.t1_aid:
-                                val_real_T1 = val_sample[0]['T1'].cuda()
+                                if opt.weighted_sampling == "cropped":
+                                    val_real_T1 = val_sample['T1'].cuda()
+                                else:
+                                    val_real_T1 = val_sample[0]['T1'].cuda()
                                 # Pass inputs to model and optimise: Forward loop
                                 val_fake_B = G_A(torch.cat((val_real_A, val_coords), dim=1))
                                 if opt.cycle_noise:
