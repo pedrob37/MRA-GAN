@@ -1220,9 +1220,9 @@ if __name__ == '__main__':
                     # Clean-up
                     del real_A, real_B, train_sample, rec_A, rec_B, train_coords, fake_D_A_out, fake_D_B_out
                     # del D_A_loss, D_B_loss, G_A_loss, G_B_loss, A_cycle, B_cycle
-                    if opt.perceptual:
+                    if opt.perceptual and train_G_A:
                         del A_perceptual_loss
-                    if opt.msssim:
+                    if opt.msssim and train_G_A:
                         del A_msssim_loss
                     if opt.t1_aid:
                         del real_T1
