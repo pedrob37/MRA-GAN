@@ -466,6 +466,9 @@ if __name__ == '__main__':
     elif opt.phase == "test":
         # Inference
         from monai.inferers import sliding_window_inference
+        from monai.inferers import SimpleInferer
+
+        simple_inferer = SimpleInferer()
         from utils.utils import basename_extractor
 
         if opt.t1_aid:
@@ -479,6 +482,10 @@ if __name__ == '__main__':
             inf_transform_list = [LoadImaged(keys=['image', 'label']),
                                   AddChanneld(keys=['image', 'label']),
                                   CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+            if opt.weighted_sampling == "cropped":
+                inf_transform_list.append(SpatialCropd(keys=['image', 'label', 'coords'],
+                                                       roi_size=(192, 224, 128),
+                                                       roi_center=(0, 0, 0)))
             if opt.znorm:
                 inf_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
 
@@ -1496,7 +1503,7 @@ if __name__ == '__main__':
                 D_scheduler.step(epoch)
         elif opt.phase == "test":
             # Overlap
-            overlap = 0.3
+            overlap = 0.0
 
             # Carry out inference
             G_A.eval()
@@ -1541,24 +1548,42 @@ if __name__ == '__main__':
                         print(f"The MRA, vasculature, and T1 names are: {image_name}, {label_name}, {t1_name}")
 
                     else:
-                        # Pass inputs to generators
-                        fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1), (192, 224, 192),
-                                                          1, G_A,
-                                                          overlap=overlap,
-                                                          mode='gaussian')
-                        fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_coords), dim=1), (192, 224, 192),
-                                                          1, G_B,
-                                                          overlap=overlap,
-                                                          mode='gaussian')
+                        if opt.weighted_sampling == "cropped":
+                            inf_spatial_size = (192, 224, 128)
+                            # Pass inputs to generators
+                            fake_B = simple_inferer(torch.cat((inf_real_A, inf_coords), dim=1),
+                                                    G_A)
+                            fake_A = simple_inferer(torch.cat((inf_real_B, inf_coords), dim=1),
+                                                    G_B)
 
-                        rec_A = sliding_window_inference(torch.cat((fake_B, inf_coords), dim=1), (192, 224, 192), 1,
-                                                         G_B,
-                                                         overlap=overlap,
-                                                         mode='gaussian')
-                        rec_B = sliding_window_inference(torch.cat((fake_A, inf_coords), dim=1), (192, 224, 192), 1,
-                                                         G_A,
-                                                         overlap=overlap,
-                                                         mode='gaussian')
+                            rec_A = simple_inferer(torch.cat((fake_B, inf_coords), dim=1),
+                                                   G_B)
+                            rec_B = simple_inferer(torch.cat((fake_A, inf_coords), dim=1),
+                                                   G_A)
+                        else:
+                            inf_spatial_size = (192, 224, 192)
+                            # Pass inputs to generators
+                            fake_B = sliding_window_inference(torch.cat((inf_real_A, inf_coords), dim=1),
+                                                              inf_spatial_size,
+                                                              1, G_A,
+                                                              overlap=overlap,
+                                                              mode='gaussian')
+                            fake_A = sliding_window_inference(torch.cat((inf_real_B, inf_coords), dim=1),
+                                                              inf_spatial_size,
+                                                              1, G_B,
+                                                              overlap=overlap,
+                                                              mode='gaussian')
+
+                            rec_A = sliding_window_inference(torch.cat((fake_B, inf_coords), dim=1), inf_spatial_size,
+                                                             1,
+                                                             G_B,
+                                                             overlap=overlap,
+                                                             mode='gaussian')
+                            rec_B = sliding_window_inference(torch.cat((fake_A, inf_coords), dim=1), inf_spatial_size,
+                                                             1,
+                                                             G_A,
+                                                             overlap=overlap,
+                                                             mode='gaussian')
 
                         print(f"The MRA and vasculature names are: {image_name}, {label_name}")
 
