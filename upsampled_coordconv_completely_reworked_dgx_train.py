@@ -1233,6 +1233,8 @@ if __name__ == '__main__':
                         del A_msssim_loss
                     if opt.t1_aid:
                         del real_T1
+
+                    break
                     # import gc
                     #
                     # for obj in gc.get_objects():
