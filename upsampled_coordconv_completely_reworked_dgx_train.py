@@ -326,8 +326,8 @@ if __name__ == '__main__':
 
 
     # Augmentations/ Transforms
-    if opt.cycle_noise:
-        post_gen_noise = RandGaussianNoise(prob=1.0, mean=0.0, std=0.05)
+    # if opt.cycle_noise:
+    post_gen_noise = RandGaussianNoise(prob=1.0, mean=0.0, std=opt.gen_noise_std)
     if opt.t1_aid:
         general_keys_list = ['image', 'label', 'T1']
         crop_keys_list = ['image', 'label', 'coords', 'T1']
@@ -353,7 +353,7 @@ if __name__ == '__main__':
                                         RandBiasFieldd(keys=["image"], degree=3, coeff_range=(0.1, 0.25),
                                                        prob=0.25),  # Odd behaviour...
                                         NormalizeIntensityd(keys=['image'], channel_wise=True),
-                                        RandGaussianNoiseD(keys=["image"], std=0.2, prob=0.5),
+                                        RandGaussianNoiseD(keys=["image"], std=0.3, prob=0.5),
                                         RandSpatialCropSamplesd(keys=["image", "label", "coords"],
                                                                 roi_size=(
                                                                     opt.patch_size, opt.patch_size, opt.patch_size),
@@ -931,24 +931,24 @@ if __name__ == '__main__':
                             real_T1 = train_sample[0]['T1'].cuda()
                         fake_B = G_A(torch.cat((real_A, train_coords), dim=1))
                         # Pair fake B with fake z to generate rec_A: Add Coords as well and T1
-                        if opt.cycle_noise:
-                            fake_B = torch.abs(post_gen_noise(fake_B))
                         rec_A = G_B(torch.cat((fake_B, real_T1, train_coords), dim=1))
 
                         # Backward loop: Sample z from normal distribution
                         fake_A = G_B(torch.cat((real_B, real_T1, train_coords), dim=1))
+                        if opt.cycle_noise:
+                            fake_A = torch.abs(post_gen_noise(fake_A))
                         # Reconstructed B
                         rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
                     else:
                         # Pass inputs to model and optimise: Forward loop
                         fake_B = G_A(torch.cat((real_A, train_coords), dim=1))
-                        if opt.cycle_noise:
-                            fake_B = torch.abs(post_gen_noise(fake_B))
                         # Pair fake B with fake z to generate rec_A: Add Coords as well
                         rec_A = G_B(torch.cat((fake_B, train_coords), dim=1))
 
                         # Backward loop: Sample z from normal distribution
                         fake_A = G_B(torch.cat((real_B, train_coords), dim=1))
+                        if opt.cycle_noise:
+                            fake_A = torch.abs(post_gen_noise(fake_A))
                         # Reconstructed B
                         rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
 
@@ -1234,7 +1234,6 @@ if __name__ == '__main__':
                     if opt.t1_aid:
                         del real_T1
 
-                    break
                     # import gc
                     #
                     # for obj in gc.get_objects():
@@ -1290,25 +1289,25 @@ if __name__ == '__main__':
                                     val_real_T1 = val_sample[0]['T1'].cuda()
                                 # Pass inputs to model and optimise: Forward loop
                                 val_fake_B = G_A(torch.cat((val_real_A, val_coords), dim=1))
-                                if opt.cycle_noise:
-                                    val_fake_B = torch.abs(post_gen_noise(val_fake_B))
                                 # Pair fake B with fake z to generate rec_A
                                 val_rec_A = G_B(torch.cat((val_fake_B, val_real_T1, val_coords), dim=1))
 
                                 # Backward loop
                                 val_fake_A = G_B(torch.cat((val_real_B, val_real_T1, val_coords), dim=1))
+                                if opt.cycle_noise:
+                                    val_fake_A = torch.abs(post_gen_noise(val_fake_A))
                                 # Reconstructed B
                                 val_rec_B = G_A(torch.cat((val_fake_A, val_coords), dim=1))
                             else:
                                 # Pass inputs to model and optimise: Forward loop
                                 val_fake_B = G_A(torch.cat((val_real_A, val_coords), dim=1))
-                                if opt.cycle_noise:
-                                    val_fake_B = torch.abs(post_gen_noise(val_fake_B))
                                 # Pair fake B with fake z to generate rec_A
                                 val_rec_A = G_B(torch.cat((val_fake_B, val_coords), dim=1))
 
                                 # Backward loop
                                 val_fake_A = G_B(torch.cat((val_real_B, val_coords), dim=1))
+                                if opt.cycle_noise:
+                                    val_fake_A = torch.abs(post_gen_noise(val_fake_A))
                                 # Reconstructed B
                                 val_rec_B = G_A(torch.cat((val_fake_A, val_coords), dim=1))
 
@@ -1603,6 +1602,8 @@ if __name__ == '__main__':
                     save_img(normalise_images(fake_A.cpu().detach().squeeze().numpy()),
                              inf_affine,
                              os.path.join(FIG_DIR, "Fake_A_" + fake_image_basename))  # MRA
+                    # # Add noise
+                    # fake_B = torch.abs(post_gen_noise(fake_B))
                     save_img(normalise_images(fake_B.cpu().detach().squeeze().numpy()),
                              inf_affine,
                              os.path.join(FIG_DIR, "Fake_B_" + fake_vasc_basename))
