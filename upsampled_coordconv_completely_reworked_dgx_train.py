@@ -935,10 +935,11 @@ if __name__ == '__main__':
 
                         # Backward loop: Sample z from normal distribution
                         fake_A = G_B(torch.cat((real_B, real_T1, train_coords), dim=1))
-                        if opt.cycle_noise:
-                            fake_A = torch.abs(post_gen_noise(fake_A))
                         # Reconstructed B
-                        rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
+                        if opt.cycle_noise:
+                            rec_B = G_A(torch.cat((post_gen_noise(fake_A), train_coords), dim=1))
+                        else:
+                            rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
                     else:
                         # Pass inputs to model and optimise: Forward loop
                         fake_B = G_A(torch.cat((real_A, train_coords), dim=1))
@@ -947,11 +948,11 @@ if __name__ == '__main__':
 
                         # Backward loop: Sample z from normal distribution
                         fake_A = G_B(torch.cat((real_B, train_coords), dim=1))
-                        if opt.cycle_noise:
-                            fake_A = torch.abs(post_gen_noise(fake_A))
                         # Reconstructed B
-                        rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
-
+                        if opt.cycle_noise:
+                            rec_B = G_A(torch.cat((post_gen_noise(fake_A), train_coords), dim=1))
+                        else:
+                            rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
                     # Training
                     # Only begin to train discriminator after model has started to converge
                     adv_start = time.time()
@@ -1294,10 +1295,11 @@ if __name__ == '__main__':
 
                                 # Backward loop
                                 val_fake_A = G_B(torch.cat((val_real_B, val_real_T1, val_coords), dim=1))
-                                if opt.cycle_noise:
-                                    val_fake_A = torch.abs(post_gen_noise(val_fake_A))
                                 # Reconstructed B
-                                val_rec_B = G_A(torch.cat((val_fake_A, val_coords), dim=1))
+                                if opt.cycle_noise:
+                                    val_rec_B = G_A(torch.cat((post_gen_noise(val_fake_A), val_coords), dim=1))
+                                else:
+                                    val_rec_B = G_A(torch.cat((val_fake_A, val_coords), dim=1))
                             else:
                                 # Pass inputs to model and optimise: Forward loop
                                 val_fake_B = G_A(torch.cat((val_real_A, val_coords), dim=1))
@@ -1306,10 +1308,11 @@ if __name__ == '__main__':
 
                                 # Backward loop
                                 val_fake_A = G_B(torch.cat((val_real_B, val_coords), dim=1))
-                                if opt.cycle_noise:
-                                    val_fake_A = torch.abs(post_gen_noise(val_fake_A))
                                 # Reconstructed B
-                                val_rec_B = G_A(torch.cat((val_fake_A, val_coords), dim=1))
+                                if opt.cycle_noise:
+                                    val_rec_B = G_A(torch.cat((post_gen_noise(val_fake_A), val_coords), dim=1))
+                                else:
+                                    val_rec_B = G_A(torch.cat((val_fake_A, val_coords), dim=1))
 
                             # "Losses"
                             # Discriminator
