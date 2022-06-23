@@ -102,7 +102,7 @@ class CoordConv(Transform):
                 f"input has {img.ndim-1} spatial dimensions, cannot add CoordConv channel for dim {max(self.spatial_channels)}."
             )
         if 0 in self.spatial_channels:
-            raise ValueError("cannot add CoordConv channel for dimension 0, as 0 is channel dim.")
+            raise ValueError("cannot add CoordConv channel for dimension 0,  as 0 is channel dim.")
 
         # Correction
         batch_size_shape, dim_x, dim_y, dim_z = img.shape

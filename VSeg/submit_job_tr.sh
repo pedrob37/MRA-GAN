@@ -1,0 +1,18 @@
+sudo docker run --runtime=nvidia --rm -v /home/chayanin/PycharmProjects/2020_v08_vrienv007/2021/2021_07_July/data_tmp:/new_data \
+ -i 8f6619e727f1 \
+ --pwd="/home/chayanin/PycharmProjects/2020_v08_vrienv007/2021/2021_07_July/week02/20210709_vseg" \
+ --mode=1 \
+ --tt_image="/new_data/Data/MRA_test3" \
+ --tt_label="/new_data/Data/MRA_test3_label" \
+ --tt_image_k="/new_data/Data/MRA_test3_k" \
+ --tt_image_filetype="*.nii.gz" \
+ --tt_label_filetype="*.nii.gz" \
+ --tt_image_k_filetype="*.nii.gz" \
+ --tt_numval=1 \
+ --tt_tmp_catch_train="/new_data/catch_20210708_Unet_train" \
+ --tt_tmp_catch_val="/new_data/catch_20210708_Unet_test" \
+ --tt_Nepoch=1000 \
+ --tt_patch_size=8 \
+ --tt_ROI_val=40 \
+ --tt_num_samples=4 \
+ --tt_mainsavefold="/new_data"
