@@ -1,6 +1,6 @@
-from scr.preprocessing import preprocessing
-from scr.training import training
-from scr.inferring import inferring
+from scripts.preprocessing import preprocessing
+from scripts.training import training
+from scripts.inferring import inferring
 from fire import Fire
 
 def run(pwd: str = "/home/chayanin/PycharmProjects/2020_v08_vrienv007/2021/2021_07_July/week02/20210706_Vseg_v2",

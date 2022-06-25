@@ -12,8 +12,10 @@ import monai
 import pandas as pd
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
+from VSeg.scripts.reworked_preprocessing import preprocessing
 import torch.nn as nn
 from models.pix2pix_disc_networks import NoisyMultiscaleDiscriminator3D, GANLoss
+from monai.networks.layers.factories import Norm
 import monai.visualize.img2tensorboard as img2tensorboard
 from itertools import cycle
 from monai.transforms import (Compose,
@@ -31,6 +33,9 @@ from monai.transforms import (Compose,
                               RandGaussianNoise,
                               )
 from utils.MSSSIM.pytorch_msssim.ssim import SSIM
+# from models.UNet_adnless import UNet
+from models.unet import UNet
+from monai.networks.nets import UNet
 
 if __name__ == '__main__':
     torch.cuda.empty_cache()
@@ -132,6 +137,7 @@ if __name__ == '__main__':
     else:
         criterionCycleB = torch.nn.L1Loss()
     criterionIdt = torch.nn.L1Loss()
+    criterionDice = monai.losses.generalized_dice()
 
     # MS-SSIM
     if opt.msssim:
@@ -551,12 +557,22 @@ if __name__ == '__main__':
         else:
             G_B = nnUNet(4, 1, dropout_level=0)
 
+        if opt.seg_loss:
+            # Forward pass through network
+            vseg_model = UNet(dimensions=3, in_channels=2, out_channels=2,
+                              channels=(16, 32, 64, 128, 256), strides=(1, 1, 1, 1),
+                              num_res_units=2).cuda()
+
+            vseg_model.load_state_dict(torch.load(os.path.join(f"{base_dir}/MRA-GAN/VSeg/PretrainedModels",
+                                                               "last_model_Nep2000.pth")), strict=False)
+
         if opt.perceptual:
             import lpips
 
             perceptual_net = lpips.LPIPS(pretrained=True, net='squeeze')
             # if torch.cuda.device_count() > 1:
             perceptual_net = torch.nn.DataParallel(perceptual_net)
+
         # Discriminators
         D_A = NoisyMultiscaleDiscriminator3D(1, opt.ndf,
                                              opt.n_layers_D,
@@ -860,7 +876,7 @@ if __name__ == '__main__':
                 epoch_iter = 0
 
                 # Iterations
-                for _, train_sample in enumerate(train_loader):
+                for some_iter, train_sample in enumerate(train_loader):
                     # print(torch.cuda.memory_allocated() / torch.cuda.max_memory_allocated())
                     # print(train_D_A, train_G_A, train_D_B, train_G_B)
                     iter_start_time = time.time()
@@ -1029,6 +1045,25 @@ if __name__ == '__main__':
                     # Idt losses
                     # idt_A_loss = criterionIdt(idt_A, real_B)
                     # idt_B_loss = criterionIdt(idt_B, real_A)
+                    if opt.seg_loss and epoch > 20:
+                        preproc = preprocessing(f"{base_dir}/MRA-GAN/VSeg/MAT_files", fake_A)
+                        slog_fake_A = preproc.process()
+
+                        # NOT training it, just running in eval mode
+                        vseg_model.eval()
+
+                        # Output segmentation
+                        seg_fake_A = torch.softmax(vseg_model(torch.cat((fake_A, slog_fake_A[None, None, ...].cuda()),
+                                                                        dim=1)), dim=1)
+
+                        # Loss
+                        loss_seg_fake_A_loss = criterionDice(seg_fake_A[:, 1, ...], real_B)
+
+                        # Save, sometimes
+                        if some_iter % 200 == 0:
+                            save_img(seg_fake_A[:, 1, ...].squeeze().cpu().detach().numpy(),
+                                     train_sample['image_meta_dict']['affine'][0, ...],
+                                     os.path.join(FIG_DIR, f"seg_fake_A_iter_{some_iter}.nii.gz"))
 
                     # Total loss
                     if opt.perceptual and not opt.msssim:
@@ -1061,6 +1096,8 @@ if __name__ == '__main__':
                         if train_G_B:
                             total_G_B_loss = G_B_loss + B_cycle
                             # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
+                    if opt.seg_loss:
+                        total_G_B_loss += loss_seg_fake_A_loss
 
                     # Backward
                     if train_G_A:
@@ -1088,6 +1125,8 @@ if __name__ == '__main__':
                         print(f"D_B Real Acc: {real_D_B_acc:.3f}")
                         print(f"D_A Fake Acc: {fake_D_A_acc:.3f}")
                         print(f"D_B Fake Acc: {fake_D_B_acc:.3f}")
+                        if opt.seg_loss:
+                            print(f"Seg Loss: {loss_seg_fake_A_loss:.3f}")
 
                     # if total_steps % opt.print_freq == 0:
                     if total_steps % opt.save_latest_freq == 0:
@@ -1162,6 +1201,8 @@ if __name__ == '__main__':
                         if opt.msssim:
                             loss_adv_dict["MSSSIM_A"] = A_msssim_loss
                             loss_granular_dict["MSSSIM_A"] = A_msssim_loss
+                        if opt.seg_loss:
+                            loss_adv_dict["Seg_loss"] = loss_seg_fake_A_loss
 
                         writer.add_scalars('Loss/Adversarial',
                                            loss_adv_dict, running_iter)
@@ -1261,7 +1302,7 @@ if __name__ == '__main__':
                     val_agg_G_A_acc = []
                     val_agg_G_B_acc = []
                     with torch.no_grad():
-                        for val_sample in val_loader:
+                        for val_iter, val_sample in enumerate(val_loader):
                             # Validation variables
                             if opt.weighted_sampling == "cropped":
                                 val_real_A = val_sample['image'].cuda()
@@ -1350,6 +1391,27 @@ if __name__ == '__main__':
                             val_A_cycle = criterionCycleA(val_rec_A, val_real_A)
                             val_B_cycle = criterionCycleB(val_rec_B, val_real_B)
 
+                            if opt.seg_loss and epoch > 20:
+                                preproc = preprocessing(f"{base_dir}/MRA-GAN/VSeg/MAT_files", val_fake_A)
+                                val_slog_fake_A = preproc.process()
+
+                                # NOT training it, just running in eval mode
+                                vseg_model.eval()
+
+                                # Output segmentation
+                                val_seg_fake_A = torch.softmax(
+                                    vseg_model(torch.cat((val_fake_A, val_slog_fake_A[None, None, ...].cuda()),
+                                                         dim=1)), dim=1)
+
+                                # Loss
+                                val_loss_seg_fake_A_loss = criterionDice(val_seg_fake_A[:, 1, ...], val_real_B)
+
+                                # Save, sometimes
+                                if val_iter % 200 == 0:
+                                    save_img(val_seg_fake_A[:, 1, ...].squeeze().cpu().detach().numpy(),
+                                             val_sample['image_meta_dict']['affine'][0, ...],
+                                             os.path.join(FIG_DIR, f"val_seg_fake_A_iter_{some_iter}.nii.gz"))
+
                             if opt.perceptual and not opt.msssim:
                                 val_A_perceptual_loss = perceptual_loss(val_real_A, val_rec_A, perceptual_net,
                                                                         opt.patch_size) * opt.perceptual_weighting
@@ -1400,6 +1462,8 @@ if __name__ == '__main__':
                         if opt.msssim:
                             val_loss_adv_dict["MSSSIM_A"] = val_A_msssim_loss
                             val_loss_granular_dict["MSSSIM_A"] = val_A_msssim_loss
+                        if opt.seg_loss:
+                            val_loss_adv_dict["Seg_loss"] = val_loss_seg_fake_A_loss
                         writer.add_scalars('Loss/Val_Adversarial',
                                            val_loss_adv_dict, running_iter)
 

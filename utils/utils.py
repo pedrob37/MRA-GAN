@@ -66,12 +66,19 @@ def create_path(some_dir):
         pass
 
 
-def save_img(image, affine, filename):
+def save_img(image, affine, filename, overwrite=False):
     nifti_img = nib.Nifti1Image(image, affine)
-    if os.path.exists(filename):
+    if os.path.exists(filename) and not overwrite:
         raise OSError("File already exists! Killing job")
     else:
         nib.save(nifti_img, filename)
+
+
+def read_file(filename):
+    img = nib.load(filename)
+    data = img.get_fdata()
+    aff = img.affine
+    return data, aff
 
 
 class CoordConv(Transform):

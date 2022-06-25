@@ -48,6 +48,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--disc_threshold_low', type=float, default=0.65, help='Discriminator training LB, below this only train disc')
         parser.add_argument('--disc_threshold_high', type=float, default=0.85, help='Discriminator training UB, above this only train generator')
         parser.add_argument('--no_lsgan', type=self.str2bool, nargs='?', const=True, default=False, help='do *not* use least square GAN, if false, use vanilla GAN')
+        parser.add_argument('--seg_loss', type=self.str2bool, nargs='?', const=True, default=False, help='Segmentation loss on fake A')
         parser.add_argument('--pool_size', type=int, default=50, help='the size of image buffer that stores previously generated images')
         parser.add_argument('--no_html', action='store_true', help='do not save intermediate training results to [opt.checkpoints_dir]/[opt.name]/web/')
         parser.add_argument('--lr_policy', type=str, default='lambda', help='learning rate policy: lambda|step|plateau|cosine')
