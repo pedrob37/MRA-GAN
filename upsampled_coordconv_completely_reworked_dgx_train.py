@@ -1062,7 +1062,7 @@ if __name__ == '__main__':
                         # Save, sometimes
                         if some_iter % 200 == 0:
                             save_img(seg_fake_A[:, 1, ...].squeeze().cpu().detach().numpy(),
-                                     train_sample['image_meta_dict']['affine'][0, ...],
+                                     train_sample[0]['image_meta_dict']['affine'][0, ...],
                                      os.path.join(FIG_DIR, f"seg_fake_A_iter_{some_iter}.nii.gz"))
 
                     # Total loss
@@ -1409,7 +1409,7 @@ if __name__ == '__main__':
                                 # Save, sometimes
                                 if val_iter % 200 == 0:
                                     save_img(val_seg_fake_A[:, 1, ...].squeeze().cpu().detach().numpy(),
-                                             val_sample['image_meta_dict']['affine'][0, ...],
+                                             val_affine,
                                              os.path.join(FIG_DIR, f"val_seg_fake_A_iter_{some_iter}.nii.gz"))
 
                             if opt.perceptual and not opt.msssim:
