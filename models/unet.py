@@ -64,9 +64,9 @@ class UNet(nn.Module):
     def _get_down_layer(self, in_channels, out_channels, strides, is_top):
         if self.num_res_units > 0:
             return ResidualUnit(self.dimensions, in_channels, out_channels, strides, self.kernel_size, self.num_res_units,
-                                self.act, "BATCH", self.dropout)
+                                self.act, self.norm, self.dropout)
         else:
-            return Convolution(self.dimensions, in_channels, out_channels, strides, self.kernel_size, self.act, "BATCH",
+            return Convolution(self.dimensions, in_channels, out_channels, strides, self.kernel_size, self.act, self.norm,
                                self.dropout)
 
     def _get_bottom_layer(self, in_channels, out_channels):

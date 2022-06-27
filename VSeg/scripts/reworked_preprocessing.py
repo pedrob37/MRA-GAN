@@ -75,8 +75,8 @@ class preprocessing():
             kernell[i] = torch.FloatTensor(DFKOrientedSticks.Dk[i])[None, None, ...].cuda()
 
         ## Unet down-sampling
-        all_kernel_image = torch.zeros([9] + (list(self.image_data.shape[-3:])))
-        for i in range(9):
+        all_kernel_image = torch.zeros([1] + (list(self.image_data.shape[-3:])))
+        for i in range(1):
             ### Down-sample loop
             all_upDx = torch.zeros([len(down_factors)] + (list(self.image_data.shape[-3:])))
             for j in range(len(down_factors)):
@@ -101,18 +101,57 @@ class preprocessing():
         return slog
 
 
-# fake_A_test, aff = read_file("/storage/Outputs-MRA-GAN/C1-Figures/"
-#                              "mra-gen2ish-sabre-not1-nopercep-nomsssim-dice-nonoise-5d-0-100-now-25fl-v1/"
-#                              "Fake_A_Vasc_MNI_syn_1477.nii.gz")
-#
+# import time
+# fake_A_test, aff = read_file(
+#                              "/storage/CycleGAN-related/SABRE-MRA-Affine/Images/sub-0_ses-v3_T1.nii.gz")
+# # fake_A_test, aff = read_file("/storage/Outputs-MRA-GAN/C1-Figures/"
+# #                              "mra-gen2ish-sabre-not1-nopercep-nomsssim-dice-nonoise-5d-0-100-now-25fl-v1/"
+# #                              "Fake_A_Vasc_MNI_syn_1477.nii.gz")
 # fake_A_test = (fake_A_test - fake_A_test.mean()) / fake_A_test.std()
 #
+# fake_A_test = fake_A_test[:80, 40:120, :80]
+#
+#
+# fake_A_test = torch.FloatTensor(fake_A_test[None, None, ...]).cuda()
+#
+# start_time = time.time()
+#
 # preproc = preprocessing("/home/pedro/MRA-GAN/MRA-GAN/VSeg/MAT_files",
-#                         torch.FloatTensor(fake_A_test)[None, None, ...].cuda())
+#                         fake_A_test)
 #
 # slog = preproc.process()
-#
-# # Save
-# save_img(slog.cpu().detach().numpy(), aff, "/storage/Outputs-MRA-GAN/C1-Figures/"
+# print(time.time() - start_time)
+# # # Save
+# random_num = np.random.randint(1000)
+# save_img(slog.squeeze().cpu().detach().numpy(), aff, "/storage/Outputs-MRA-GAN/C1-Figures/"
 #                                            "mra-gen2ish-sabre-not1-nopercep-nomsssim-dice-nonoise-5d-0-100-now-25fl-v1/"
-#                                            f"slog_test_{np.random.randint(1000)}.nii.gz")
+#                                            f"slog_test_{random_num}.nii.gz")
+# save_img(fake_A_test.squeeze().cpu().detach().numpy(), aff, "/storage/Outputs-MRA-GAN/C1-Figures/"
+#                                                   "mra-gen2ish-sabre-not1-nopercep-nomsssim-dice-nonoise-5d-0-100-now-25fl-v1/"
+#                                                   f"fake_A_test_{random_num}.nii.gz")
+# # from monai.networks.nets import UNet
+# from chinai.networks.nets import UNet
+# from chinai.networks.layers import Norm
+#
+# vseg_model = UNet(dimensions=3, in_channels=2, out_channels=2,
+#                   channels=(16, 32, 64, 128, 256), strides=(1, 1, 1, 1),
+#                   num_res_units=2, norm=Norm.BATCH).cuda()
+# vseg_model.load_state_dict(torch.load(os.path.join(f"/home/pedro/MRA-GAN/MRA-GAN/VSeg/PretrainedModels",
+#                                                    "last_model_Nep2000.pth")), strict=True)
+#
+# vseg_model.eval()
+#
+# # # Output segmentation
+# seg_fake_A = torch.softmax(vseg_model(torch.cat((fake_A_test, slog[None, None, ...].cuda()),
+#                                                 dim=1)), dim=1)
+#
+# # # Loss
+# # # loss_seg_fake_A_loss = criterionDice(seg_fake_A[:, 1, ...][:, None, ...], real_B)
+# #
+# # # Save, sometimes
+# # # if some_iter % 200 == 0:
+# save_img(seg_fake_A[:, 1, ...].squeeze().cpu().detach().numpy(),
+#          aff,
+#          "/storage/Outputs-MRA-GAN/C1-Figures/mra-gen2ish-sabre-not1-nopercep-nomsssim-dice-nonoise-5d-0-100-now-25fl-v1/"
+#          f"seg_test_{random_num}.nii.gz",
+#          overwrite=True)

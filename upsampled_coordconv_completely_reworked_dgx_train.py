@@ -34,8 +34,11 @@ from monai.transforms import (Compose,
                               )
 from utils.MSSSIM.pytorch_msssim.ssim import SSIM
 # from models.UNet_adnless import UNet
-from models.unet import UNet
-from monai.networks.nets import UNet
+# from models.unet import UNet
+# from monai.networks.nets import UNet
+from chinai.networks.nets import UNet
+from chinai.networks.layers import Norm
+
 
 if __name__ == '__main__':
     torch.cuda.empty_cache()
@@ -561,10 +564,12 @@ if __name__ == '__main__':
             # Forward pass through network
             vseg_model = UNet(dimensions=3, in_channels=2, out_channels=2,
                               channels=(16, 32, 64, 128, 256), strides=(1, 1, 1, 1),
-                              num_res_units=2).cuda()
+                              num_res_units=2, norm=Norm.BATCH).cuda()
 
             vseg_model.load_state_dict(torch.load(os.path.join(f"{base_dir}/MRA-GAN/VSeg/PretrainedModels",
-                                                               "last_model_Nep2000.pth")), strict=False)
+                                                               "last_model_Nep2000.pth")), strict=True)
+
+            vseg_model.eval()
 
         if opt.perceptual:
             import lpips
@@ -1045,12 +1050,9 @@ if __name__ == '__main__':
                     # Idt losses
                     # idt_A_loss = criterionIdt(idt_A, real_B)
                     # idt_B_loss = criterionIdt(idt_B, real_A)
-                    if opt.seg_loss and epoch > 20:
+                    if opt.seg_loss and train_G_B and epoch > 20:
                         preproc = preprocessing(f"{base_dir}/MRA-GAN/VSeg/MAT_files", fake_A)
                         slog_fake_A = preproc.process()
-
-                        # NOT training it, just running in eval mode
-                        vseg_model.eval()
 
                         # Output segmentation
                         seg_fake_A = torch.softmax(vseg_model(torch.cat((fake_A, slog_fake_A[None, None, ...].cuda()),
@@ -1102,8 +1104,8 @@ if __name__ == '__main__':
                         if train_G_B:
                             total_G_B_loss = G_B_loss + B_cycle
                             # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
-                    if opt.seg_loss and train_G_B:
-                        total_G_B_loss += loss_seg_fake_A_loss
+                    if opt.seg_loss and train_G_B and epoch > 20:
+                        total_G_B_loss = total_G_B_loss + loss_seg_fake_A_loss
 
                     # Backward
                     if train_G_A:
@@ -1131,7 +1133,7 @@ if __name__ == '__main__':
                         print(f"D_B Real Acc: {real_D_B_acc:.3f}")
                         print(f"D_A Fake Acc: {fake_D_A_acc:.3f}")
                         print(f"D_B Fake Acc: {fake_D_B_acc:.3f}")
-                        if opt.seg_loss:
+                        if opt.seg_loss and train_G_B and epoch > 20:
                             print(f"Seg Loss: {loss_seg_fake_A_loss:.3f}")
 
                     # if total_steps % opt.print_freq == 0:
@@ -1207,7 +1209,7 @@ if __name__ == '__main__':
                         if opt.msssim:
                             loss_adv_dict["MSSSIM_A"] = A_msssim_loss
                             loss_granular_dict["MSSSIM_A"] = A_msssim_loss
-                        if opt.seg_loss:
+                        if opt.seg_loss and train_G_B and epoch > 20:
                             loss_adv_dict["Seg_loss"] = loss_seg_fake_A_loss
 
                         writer.add_scalars('Loss/Adversarial',
@@ -1274,7 +1276,6 @@ if __name__ == '__main__':
 
                     # Clean-up
                     del real_A, real_B, train_sample, rec_A, rec_B, train_coords, fake_D_A_out, fake_D_B_out
-                    del total_G_A_loss, total_G_B_loss
                     # del D_A_loss, D_B_loss, G_A_loss, G_B_loss, A_cycle, B_cycle
                     if opt.perceptual and train_G_A:
                         del A_perceptual_loss
@@ -1282,8 +1283,12 @@ if __name__ == '__main__':
                         del A_msssim_loss
                     if opt.t1_aid:
                         del real_T1
-                    if opt.seg_loss:
+                    if opt.seg_loss and train_G_B and epoch > 20:
                         del loss_seg_fake_A_loss
+                    if train_G_B:
+                        del total_G_B_loss
+                    if train_G_A:
+                        del total_G_A_loss
 
                     # import gc
                     #
@@ -1404,9 +1409,6 @@ if __name__ == '__main__':
                                 preproc = preprocessing(f"{base_dir}/MRA-GAN/VSeg/MAT_files", val_fake_A)
                                 val_slog_fake_A = preproc.process()
 
-                                # NOT training it, just running in eval mode
-                                vseg_model.eval()
-
                                 # Output segmentation
                                 val_seg_fake_A = torch.softmax(
                                     vseg_model(torch.cat((val_fake_A, val_slog_fake_A[None, None, ...].cuda()),
@@ -1478,7 +1480,7 @@ if __name__ == '__main__':
                         if opt.msssim:
                             val_loss_adv_dict["MSSSIM_A"] = val_A_msssim_loss
                             val_loss_granular_dict["MSSSIM_A"] = val_A_msssim_loss
-                        if opt.seg_loss:
+                        if opt.seg_loss and epoch > 20:
                             val_loss_adv_dict["Seg_loss"] = val_loss_seg_fake_A_loss
                         writer.add_scalars('Loss/Val_Adversarial',
                                            val_loss_adv_dict, running_iter)
@@ -1581,6 +1583,8 @@ if __name__ == '__main__':
                         del val_real_A, val_real_B, val_sample, val_rec_A, val_rec_B
                         if opt.t1_aid:
                             del val_real_T1
+                        if opt.seg_loss and epoch > 20:
+                            del val_loss_seg_fake_A_loss
 
                 print(f'End of epoch {epoch} / {opt.niter} \t Time Taken: {time.time() - epoch_start_time:.3f} sec')
                 G_scheduler.step(epoch)
