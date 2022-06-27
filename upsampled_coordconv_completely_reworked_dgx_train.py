@@ -1057,7 +1057,7 @@ if __name__ == '__main__':
                                                                         dim=1)), dim=1)
 
                         # Loss
-                        loss_seg_fake_A_loss = criterionDice(seg_fake_A[:, 1, ...], real_B)
+                        loss_seg_fake_A_loss = criterionDice(seg_fake_A[:, 1, ...][:, None, ...], real_B)
 
                         # Save, sometimes
                         if some_iter % 200 == 0:
@@ -1404,7 +1404,7 @@ if __name__ == '__main__':
                                                          dim=1)), dim=1)
 
                                 # Loss
-                                val_loss_seg_fake_A_loss = criterionDice(val_seg_fake_A[:, 1, ...], val_real_B)
+                                val_loss_seg_fake_A_loss = criterionDice(val_seg_fake_A[:, 1, ...][:, None, ...], val_real_B)
 
                                 # Save, sometimes
                                 if val_iter % 200 == 0:
