@@ -1102,7 +1102,7 @@ if __name__ == '__main__':
                         if train_G_B:
                             total_G_B_loss = G_B_loss + B_cycle
                             # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
-                    if opt.seg_loss:
+                    if opt.seg_loss and train_G_B:
                         total_G_B_loss += loss_seg_fake_A_loss
 
                     # Backward
@@ -1274,6 +1274,7 @@ if __name__ == '__main__':
 
                     # Clean-up
                     del real_A, real_B, train_sample, rec_A, rec_B, train_coords, fake_D_A_out, fake_D_B_out
+                    del total_G_A_loss, total_G_B_loss
                     # del D_A_loss, D_B_loss, G_A_loss, G_B_loss, A_cycle, B_cycle
                     if opt.perceptual and train_G_A:
                         del A_perceptual_loss
