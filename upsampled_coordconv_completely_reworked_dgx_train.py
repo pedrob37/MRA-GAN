@@ -1043,14 +1043,13 @@ if __name__ == '__main__':
                         A_cycle = criterionCycleA(rec_A, real_A)
                     if train_G_B:
                         G_B_loss, G_B_acc = generator_loss(gen_images=fake_A, discriminator=D_A)
-                        B_cycle = criterionCycleB(rec_B, real_B)
-
-                    # Cycle losses: G_A and G_B
+                        if opt.block_cycle_B:
+                            B_cycle = criterionCycleB(rec_B, real_B)
 
                     # Idt losses
                     # idt_A_loss = criterionIdt(idt_A, real_B)
                     # idt_B_loss = criterionIdt(idt_B, real_A)
-                    if opt.seg_loss and train_G_B and epoch > 20:
+                    if opt.seg_loss and train_G_B and epoch >= opt.vseg_epoch:
                         preproc = preprocessing(f"{base_dir}/MRA-GAN/VSeg/MAT_files", fake_A)
                         slog_fake_A = preproc.process()
 
@@ -1059,7 +1058,7 @@ if __name__ == '__main__':
                                                                         dim=1)), dim=1)
 
                         # Loss
-                        loss_seg_fake_A_loss = criterionDice(seg_fake_A[:, 1, ...][:, None, ...], real_B)
+                        loss_seg_fake_A_loss = opt.vseg_loss_scaling * criterionDice(seg_fake_A[:, 1, ...][:, None, ...], real_B)
 
                         # Save, sometimes
                         if running_iter % 200 == 0:
@@ -1080,6 +1079,8 @@ if __name__ == '__main__':
                                                                 opt.patch_size) * opt.perceptual_weighting
                             total_G_A_loss = G_A_loss + A_cycle + A_perceptual_loss
                         if train_G_B:
+                            if opt.block_cycle_B:
+                                total_G_B_loss = G_B_loss
                             total_G_B_loss = G_B_loss + B_cycle
                             # total_G_loss = G_A_loss + A_cycle + A_perceptual_loss + G_B_loss + B_cycle
                     elif not opt.perceptual and opt.msssim:
@@ -1087,6 +1088,8 @@ if __name__ == '__main__':
                             A_msssim_loss = criterionMSSSIM(real_A, rec_A) * opt.msssim_weighting
                             total_G_A_loss = G_A_loss + A_cycle + A_msssim_loss
                         if train_G_B:
+                            if opt.block_cycle_B:
+                                total_G_B_loss = G_B_loss
                             total_G_B_loss = G_B_loss + B_cycle
                             # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss
                     elif opt.perceptual and opt.msssim:
@@ -1096,15 +1099,19 @@ if __name__ == '__main__':
                             A_msssim_loss = criterionMSSSIM(real_A, rec_A) * opt.msssim_weighting
                             total_G_A_loss = G_A_loss + A_cycle + A_msssim_loss + A_perceptual_loss
                         if train_G_B:
-                            total_G_B_loss = G_B_loss + B_cycle
-                            # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss + A_perceptual_loss
+                            if opt.block_cycle_B:
+                                total_G_B_loss = G_B_loss
+                        total_G_B_loss = G_B_loss + B_cycle
+                        # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss + A_perceptual_loss
                     else:
                         if train_G_A:
                             total_G_A_loss = G_A_loss + A_cycle
                         if train_G_B:
+                            if opt.block_cycle_B:
+                                total_G_B_loss = G_B_loss
                             total_G_B_loss = G_B_loss + B_cycle
                             # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
-                    if opt.seg_loss and train_G_B and epoch > 20:
+                    if opt.seg_loss and train_G_B and epoch >= opt.vseg_epoch:
                         total_G_B_loss = total_G_B_loss + loss_seg_fake_A_loss
 
                     # Backward
@@ -1123,9 +1130,9 @@ if __name__ == '__main__':
                               f"MS-SSIM: {A_msssim_loss.cpu().detach().tolist()[0][0]:.3f}, "
                               f"G_A: {G_A_loss.cpu().detach().tolist():.3f}, "
                               f"G_B: {G_B_loss.cpu().detach().tolist():.3f}, "
-                              f"cycle_A: {A_cycle.cpu().detach().tolist():.3f}, "
-                              f"cycle_B: {B_cycle.cpu().detach().tolist():.3f}"
-                              )
+                              f"cycle_A: {A_cycle.cpu().detach().tolist():.3f}")
+                        if not opt.block_cycle_B:
+                            print(f", cycle_B: {B_cycle.cpu().detach().tolist():.3f}")
 
                     if running_iter % 100 == 0:
                         print(f"\nIteration: {running_iter}")
@@ -1133,7 +1140,7 @@ if __name__ == '__main__':
                         print(f"D_B Real Acc: {real_D_B_acc:.3f}")
                         print(f"D_A Fake Acc: {fake_D_A_acc:.3f}")
                         print(f"D_B Fake Acc: {fake_D_B_acc:.3f}")
-                        if opt.seg_loss and train_G_B and epoch > 20:
+                        if opt.seg_loss and train_G_B and epoch >= opt.vseg_epoch:
                             print(f"Seg Loss: {loss_seg_fake_A_loss:.3f}")
 
                     # if total_steps % opt.print_freq == 0:
@@ -1184,8 +1191,9 @@ if __name__ == '__main__':
                                 "Generator_A": G_A_loss,
                                 "Generator_B": G_B_loss,
                                 "cycle_A": A_cycle,
-                                "cycle_B": B_cycle,
                             }
+                            if not opt.block_cycle_B:
+                                loss_granular_dict["cycle_B"] = B_cycle
                         else:
                             loss_adv_dict = {
                                 "Generator_A": G_A_acc,
@@ -1201,15 +1209,16 @@ if __name__ == '__main__':
                                 "Discriminator_B_real": real_D_B_acc,
                                 "Discriminator_B_fake": fake_D_B_acc,
                                 "cycle_A": A_cycle,
-                                "cycle_B": B_cycle,
                             }
+                            if not opt.block_cycle_B:
+                                loss_granular_dict["cycle_B"] = B_cycle
                         if opt.perceptual:
                             loss_adv_dict["Perceptual_A"] = A_perceptual_loss
                             loss_granular_dict["Perceptual_A"] = A_perceptual_loss
                         if opt.msssim:
                             loss_adv_dict["MSSSIM_A"] = A_msssim_loss
                             loss_granular_dict["MSSSIM_A"] = A_msssim_loss
-                        if opt.seg_loss and train_G_B and epoch > 20:
+                        if opt.seg_loss and train_G_B and epoch > opt.vseg_epoch:
                             loss_adv_dict["Seg_loss"] = loss_seg_fake_A_loss
 
                         writer.add_scalars('Loss/Adversarial',
@@ -1283,7 +1292,7 @@ if __name__ == '__main__':
                         del A_msssim_loss
                     if opt.t1_aid:
                         del real_T1
-                    if opt.seg_loss and train_G_B and epoch > 20:
+                    if opt.seg_loss and train_G_B and epoch >= opt.vseg_epoch:
                         del loss_seg_fake_A_loss
                     if train_G_B:
                         del total_G_B_loss
@@ -1405,7 +1414,7 @@ if __name__ == '__main__':
                             val_A_cycle = criterionCycleA(val_rec_A, val_real_A)
                             val_B_cycle = criterionCycleB(val_rec_B, val_real_B)
 
-                            if opt.seg_loss and epoch > 20:
+                            if opt.seg_loss and epoch >= opt.vseg_epoch:
                                 preproc = preprocessing(f"{base_dir}/MRA-GAN/VSeg/MAT_files", val_fake_A)
                                 val_slog_fake_A = preproc.process()
 
@@ -1480,7 +1489,7 @@ if __name__ == '__main__':
                         if opt.msssim:
                             val_loss_adv_dict["MSSSIM_A"] = val_A_msssim_loss
                             val_loss_granular_dict["MSSSIM_A"] = val_A_msssim_loss
-                        if opt.seg_loss and epoch > 20:
+                        if opt.seg_loss and epoch >= opt.vseg_epoch:
                             val_loss_adv_dict["Seg_loss"] = val_loss_seg_fake_A_loss
                         writer.add_scalars('Loss/Val_Adversarial',
                                            val_loss_adv_dict, running_iter)
@@ -1583,7 +1592,7 @@ if __name__ == '__main__':
                         del val_real_A, val_real_B, val_sample, val_rec_A, val_rec_B
                         if opt.t1_aid:
                             del val_real_T1
-                        if opt.seg_loss and epoch > 20:
+                        if opt.seg_loss and epoch >= opt.vseg_epoch:
                             del val_loss_seg_fake_A_loss
 
                 print(f'End of epoch {epoch} / {opt.niter} \t Time Taken: {time.time() - epoch_start_time:.3f} sec')
@@ -1688,17 +1697,21 @@ if __name__ == '__main__':
                     # Saving: Fakes
                     save_img(normalise_images(fake_A.cpu().detach().squeeze().numpy()),
                              inf_affine,
-                             os.path.join(FIG_DIR, "Fake_A_" + fake_image_basename))  # MRA
+                             os.path.join(FIG_DIR, "Fake_A_" + fake_image_basename),
+                             overwrite=True)  # MRA
                     # # Add noise
                     # fake_B = torch.abs(post_gen_noise(fake_B))
                     save_img(normalise_images(fake_B.cpu().detach().squeeze().numpy()),
                              inf_affine,
-                             os.path.join(FIG_DIR, "Fake_B_" + fake_vasc_basename))
+                             os.path.join(FIG_DIR, "Fake_B_" + fake_vasc_basename),
+                             overwrite=True)
 
                     # Saving: Reconstructions
                     save_img(normalise_images(rec_A.cpu().detach().squeeze().numpy()),
                              inf_affine,
-                             os.path.join(FIG_DIR, "Rec_A_" + fake_image_basename))
+                             os.path.join(FIG_DIR, "Rec_A_" + fake_image_basename),
+                             overwrite=True)
                     save_img(normalise_images(rec_B.cpu().detach().squeeze().numpy()),
                              inf_affine,
-                             os.path.join(FIG_DIR, "Rec_B_" + fake_vasc_basename))
+                             os.path.join(FIG_DIR, "Rec_B_" + fake_vasc_basename),
+                             overwrite=True)
