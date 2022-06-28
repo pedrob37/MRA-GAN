@@ -1043,7 +1043,7 @@ if __name__ == '__main__':
                         A_cycle = criterionCycleA(rec_A, real_A)
                     if train_G_B:
                         G_B_loss, G_B_acc = generator_loss(gen_images=fake_A, discriminator=D_A)
-                        if opt.block_cycle_B:
+                        if not opt.block_cycle_B:
                             B_cycle = criterionCycleB(rec_B, real_B)
 
                     # Idt losses
