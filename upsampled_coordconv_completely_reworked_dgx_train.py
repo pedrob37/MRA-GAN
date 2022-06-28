@@ -1081,7 +1081,8 @@ if __name__ == '__main__':
                         if train_G_B:
                             if opt.block_cycle_B:
                                 total_G_B_loss = G_B_loss
-                            total_G_B_loss = G_B_loss + B_cycle
+                            else:
+                                total_G_B_loss = G_B_loss + B_cycle
                             # total_G_loss = G_A_loss + A_cycle + A_perceptual_loss + G_B_loss + B_cycle
                     elif not opt.perceptual and opt.msssim:
                         if train_G_A:
@@ -1090,7 +1091,8 @@ if __name__ == '__main__':
                         if train_G_B:
                             if opt.block_cycle_B:
                                 total_G_B_loss = G_B_loss
-                            total_G_B_loss = G_B_loss + B_cycle
+                            else:
+                                total_G_B_loss = G_B_loss + B_cycle
                             # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss
                     elif opt.perceptual and opt.msssim:
                         if train_G_A:
@@ -1101,7 +1103,8 @@ if __name__ == '__main__':
                         if train_G_B:
                             if opt.block_cycle_B:
                                 total_G_B_loss = G_B_loss
-                        total_G_B_loss = G_B_loss + B_cycle
+                            else:
+                                total_G_B_loss = G_B_loss + B_cycle
                         # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle + A_msssim_loss + A_perceptual_loss
                     else:
                         if train_G_A:
@@ -1109,7 +1112,8 @@ if __name__ == '__main__':
                         if train_G_B:
                             if opt.block_cycle_B:
                                 total_G_B_loss = G_B_loss
-                            total_G_B_loss = G_B_loss + B_cycle
+                            else:
+                                total_G_B_loss = G_B_loss + B_cycle
                             # total_G_loss = G_A_loss + G_B_loss + A_cycle + B_cycle
                     if opt.seg_loss and train_G_B and epoch >= opt.vseg_epoch:
                         total_G_B_loss = total_G_B_loss + loss_seg_fake_A_loss
