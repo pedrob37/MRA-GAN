@@ -893,32 +893,32 @@ if __name__ == '__main__':
                     # Determine whether to train D, G, both, or neither
                     if D_A_acc is None:
                         train_D_A = True
-                        train_G_A = True
+                        train_G_B = True
                     elif opt.disc_threshold_low <= D_A_acc <= opt.disc_threshold_high:
                         train_D_A = True
-                        train_G_A = True
+                        train_G_B = True
                     elif D_A_acc < opt.disc_threshold_low:
                         train_D_A = True
-                        train_G_A = False
+                        train_G_B = False
                     elif D_A_acc > opt.disc_threshold_high:
                         train_D_A = False
-                        train_G_A = True
+                        train_G_B = True
                     else:
                         Warning("Non numeric accuracy.")
 
                     # Determine whether to train D, G, both, or neither
                     if D_B_acc is None:
                         train_D_B = True
-                        train_G_B = True
+                        train_G_A = True
                     elif opt.disc_threshold_low <= D_B_acc <= opt.disc_threshold_high:
                         train_D_B = True
-                        train_G_B = True
+                        train_G_A = True
                     elif D_B_acc < opt.disc_threshold_low:
                         train_D_B = True
-                        train_G_B = False
+                        train_G_A = False
                     elif D_B_acc > opt.disc_threshold_high:
                         train_D_B = False
-                        train_G_B = True
+                        train_G_A = True
                     else:
                         Warning("Non numeric accuracy.")
 
@@ -1062,14 +1062,14 @@ if __name__ == '__main__':
                         loss_seg_fake_A_loss = criterionDice(seg_fake_A[:, 1, ...][:, None, ...], real_B)
 
                         # Save, sometimes
-                        if some_iter % 200 == 0:
+                        if running_iter % 200 == 0:
                             save_img(seg_fake_A[:, 1, ...].squeeze().cpu().detach().numpy(),
                                      train_sample[0]['image_meta_dict']['affine'][0, ...],
-                                     os.path.join(FIG_DIR, f"seg_fake_A_iter_{some_iter}.nii.gz"),
+                                     os.path.join(FIG_DIR, f"seg_fake_A_iter_{running_iter}.nii.gz"),
                                      overwrite=True)
                             save_img(real_B.squeeze().cpu().detach().numpy(),
                                      train_sample[0]['image_meta_dict']['affine'][0, ...],
-                                     os.path.join(FIG_DIR, f"seg_real_B_iter_{some_iter}.nii.gz"),
+                                     os.path.join(FIG_DIR, f"seg_real_B_iter_{running_iter}.nii.gz"),
                                      overwrite=True)
                         del seg_fake_A, slog_fake_A
 
@@ -1422,11 +1422,11 @@ if __name__ == '__main__':
                                 if val_iter % 200 == 0:
                                     save_img(val_seg_fake_A[:, 1, ...].squeeze().cpu().detach().numpy(),
                                              val_affine,
-                                             os.path.join(FIG_DIR, f"val_seg_fake_A_iter_{some_iter}.nii.gz"),
+                                             os.path.join(FIG_DIR, f"val_seg_fake_A_iter_{running_iter}.nii.gz"),
                                              overwrite=True)
                                     save_img(val_real_B.squeeze().cpu().detach().numpy(),
                                              val_affine,
-                                             os.path.join(FIG_DIR, f"val_real_B_iter_{some_iter}.nii.gz"),
+                                             os.path.join(FIG_DIR, f"val_real_B_iter_{running_iter}.nii.gz"),
                                              overwrite=True)
                                 del val_seg_fake_A, val_slog_fake_A
 
