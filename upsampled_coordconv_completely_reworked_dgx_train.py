@@ -561,6 +561,10 @@ if __name__ == '__main__':
             G_B = nnUNet(4, 1, dropout_level=0)
 
         if opt.seg_loss:
+            # Process Mat file in advance: By far most computationally intensive component!
+            preproc = preprocessing(f"{base_dir}/MRA-GAN/VSeg/MAT_files")
+            dfk_file = preproc.process_DFK()
+
             # Forward pass through network
             vseg_model = UNet(dimensions=3, in_channels=2, out_channels=2,
                               channels=(16, 32, 64, 128, 256), strides=(1, 1, 1, 1),
@@ -1050,8 +1054,7 @@ if __name__ == '__main__':
                     # idt_A_loss = criterionIdt(idt_A, real_B)
                     # idt_B_loss = criterionIdt(idt_B, real_A)
                     if opt.seg_loss and train_G_B and epoch >= opt.vseg_epoch:
-                        preproc = preprocessing(f"{base_dir}/MRA-GAN/VSeg/MAT_files", fake_A)
-                        slog_fake_A = preproc.process()
+                        slog_fake_A = preproc.process_conv(fake_A, dfk_file)
 
                         # Output segmentation
                         seg_fake_A = torch.softmax(vseg_model(torch.cat((fake_A, slog_fake_A[None, None, ...].cuda()),
@@ -1419,8 +1422,7 @@ if __name__ == '__main__':
                             val_B_cycle = criterionCycleB(val_rec_B, val_real_B)
 
                             if opt.seg_loss and epoch >= opt.vseg_epoch:
-                                preproc = preprocessing(f"{base_dir}/MRA-GAN/VSeg/MAT_files", val_fake_A)
-                                val_slog_fake_A = preproc.process()
+                                val_slog_fake_A = preproc.process_conv(fake_A, dfk_file)
 
                                 # Output segmentation
                                 val_seg_fake_A = torch.softmax(

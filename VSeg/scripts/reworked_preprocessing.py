@@ -12,11 +12,10 @@ class Const_strcData:
 
 
 class preprocessing():
-    def __init__(self, para_folder, image_data):
+    def __init__(self, para_folder):
         self.para_folder = para_folder
-        self.image_data = image_data
 
-    def process(self):
+    def process_DFK(self):
         # Step 1: Create necessary parameters
         DFKs = myload_DFKs_MAIN(self.para_folder + '/DFKs_MAIN.mat')
         num_ker = 1  # only take the stick 12
@@ -65,33 +64,35 @@ class preprocessing():
             ## Assign and storing Data
             DFKOrientedSticks.Dk[ors] = Dkrot
             del Dkrot
+        return DFKOrientedSticks
 
+    def process_conv(self, image_data, DFK_oriented):
         # Step 2: Convolution
         # Step 2.1: Rename DFKOrientedSticks.Dk into kernel
         # down_factors = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
         down_factors = [0.25, 0.5, 0.75, 1.0]
-        kernell = [None] * len(DFKOrientedSticks.Dk)
-        for i in range(len(DFKOrientedSticks.Dk)):
-            kernell[i] = torch.FloatTensor(DFKOrientedSticks.Dk[i])[None, None, ...].cuda()
+        kernell = [None] * len(DFK_oriented.Dk)
+        for i in range(len(DFK_oriented.Dk)):
+            kernell[i] = torch.FloatTensor(DFK_oriented.Dk[i])[None, None, ...].cuda()
 
         ## Unet down-sampling
-        all_kernel_image = torch.zeros([1] + (list(self.image_data.shape[-3:])))
-        for i in range(1):
+        all_kernel_image = torch.zeros([10] + (list(image_data.shape[-3:])))
+        for i, ker in enumerate(np.linspace(0, 80, 10, dtype=int)):
             ### Down-sample loop
-            all_upDx = torch.zeros([len(down_factors)] + (list(self.image_data.shape[-3:])))
+            all_upDx = torch.zeros([len(down_factors)] + (list(image_data.shape[-3:])))
             for j in range(len(down_factors)):
-                pool_layer = nn.AdaptiveAvgPool3d((int(down_factors[j] * self.image_data.shape[-3]),
-                                                   int(down_factors[j] * self.image_data.shape[-2]),
-                                                   int(down_factors[j] * self.image_data.shape[-1]))).cuda()
+                pool_layer = nn.AdaptiveAvgPool3d((int(down_factors[j] * image_data.shape[-3]),
+                                                   int(down_factors[j] * image_data.shape[-2]),
+                                                   int(down_factors[j] * image_data.shape[-1]))).cuda()
 
-                pooled_image_data = pool_layer(self.image_data)
+                pooled_image_data = pool_layer(image_data)
                 downDx_tmp = F.conv3d(pooled_image_data,
-                                      kernell[i].float(),
+                                      kernell[ker].float(),
                                       stride=(1, 1, 1),
                                       padding=(2, 2, 2),
                                       dilation=(1, 1, 1))
 
-                all_upDx[j, ...] = upsamp(downDx_tmp, list(self.image_data.shape[-3:]))
+                all_upDx[j, ...] = upsamp(downDx_tmp, list(image_data.shape[-3:]))
                 del pool_layer, downDx_tmp
             all_kernel_image[i, ...], _ = torch.max(all_upDx, dim=0)
             del all_upDx
@@ -116,11 +117,13 @@ class preprocessing():
 #
 # start_time = time.time()
 #
-# preproc = preprocessing("/home/pedro/MRA-GAN/MRA-GAN/VSeg/MAT_files",
-#                         fake_A_test)
+# preproc = preprocessing("/home/pedro/MRA-GAN/MRA-GAN/VSeg/MAT_files")
 #
-# slog = preproc.process()
-# print(time.time() - start_time)
+# dfk_file = preproc.process_DFK()
+# print(f"DFK time: {time.time() - start_time}")
+# conv_start = time.time()
+# slog = preproc.process_conv(fake_A_test, dfk_file)
+# print(f"Conv time: {time.time() - conv_start}")
 # # # Save
 # random_num = np.random.randint(1000)
 # save_img(slog.squeeze().cpu().detach().numpy(), aff, "/storage/Outputs-MRA-GAN/C1-Figures/"
