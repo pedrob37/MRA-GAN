@@ -460,13 +460,13 @@ if __name__ == '__main__':
                                                                  random_size=False,
                                                                  num_samples=1),
                                          ToTensord(keys=crop_keys_list)])
-        val_transform_list.extend([RandSpatialCropSamplesd(keys=crop_keys_list,
-                                                           roi_size=(
-                                                               opt.patch_size, opt.patch_size, opt.patch_size),
-                                                           random_center=True,
-                                                           random_size=False,
-                                                           num_samples=1),
-                                   ToTensord(keys=crop_keys_list)])
+            val_transform_list.extend([RandSpatialCropSamplesd(keys=crop_keys_list,
+                                                               roi_size=(
+                                                                   opt.patch_size, opt.patch_size, opt.patch_size),
+                                                               random_center=True,
+                                                               random_size=False,
+                                                               num_samples=1),
+                                       ToTensord(keys=crop_keys_list)])
 
         # Compose
         train_transforms = Compose(train_transform_list)
@@ -884,6 +884,12 @@ if __name__ == '__main__':
                 iter_data_time = time.time()
                 epoch_iter = 0
 
+                # Counters
+                counter_train_G_A = 0
+                counter_train_G_B = 0
+                counter_train_D_A = 0
+                counter_train_D_B = 0
+
                 # Iterations
                 for some_iter, train_sample in enumerate(train_loader):
                     # print(torch.cuda.memory_allocated() / torch.cuda.max_memory_allocated())
@@ -910,6 +916,7 @@ if __name__ == '__main__':
                     else:
                         Warning("Non numeric accuracy.")
 
+
                     # Determine whether to train D, G, both, or neither
                     if D_B_acc is None:
                         train_D_B = True
@@ -925,6 +932,12 @@ if __name__ == '__main__':
                         train_G_A = True
                     else:
                         Warning("Non numeric accuracy.")
+
+                    # Update counters
+                    counter_train_G_A += train_G_A
+                    counter_train_G_B += train_G_B
+                    counter_train_D_A += train_D_A
+                    counter_train_D_B += train_D_B
 
                     # Training variables: Global
                     total_steps += opt.batch_size
@@ -1314,6 +1327,12 @@ if __name__ == '__main__':
                     #             print(type(obj), obj.size())
                     #     except:
                     #         pass
+
+                # Counter fractions
+                print(f"G_A trained for {100 * counter_train_G_A/some_iter:.2f% of the epoch}")
+                print(f"D_A trained for {100 * counter_train_D_A/some_iter:.2f% of the epoch}")
+                print(f"G_B trained for {100 * counter_train_G_B/some_iter:.2f% of the epoch}")
+                print(f"D_B trained for {100 * counter_train_D_B/some_iter:.2f% of the epoch}")
 
                 if epoch % val_gap == 0:
                     G_A.eval()
