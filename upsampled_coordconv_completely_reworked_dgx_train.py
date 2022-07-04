@@ -1329,10 +1329,10 @@ if __name__ == '__main__':
                     #         pass
 
                 # Counter fractions
-                print(f"G_A trained for {100 * counter_train_G_A/some_iter:.2f% of the epoch}")
-                print(f"D_A trained for {100 * counter_train_D_A/some_iter:.2f% of the epoch}")
-                print(f"G_B trained for {100 * counter_train_G_B/some_iter:.2f% of the epoch}")
-                print(f"D_B trained for {100 * counter_train_D_B/some_iter:.2f% of the epoch}")
+                print(f"G_A trained for {100 * counter_train_G_A/some_iter:.2f}% of the epoch")
+                print(f"D_A trained for {100 * counter_train_D_A/some_iter:.2f}% of the epoch")
+                print(f"G_B trained for {100 * counter_train_G_B/some_iter:.2f}% of the epoch")
+                print(f"D_B trained for {100 * counter_train_D_B/some_iter:.2f}% of the epoch")
 
                 if epoch % val_gap == 0:
                     G_A.eval()
