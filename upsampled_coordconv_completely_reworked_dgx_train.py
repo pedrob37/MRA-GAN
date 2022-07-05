@@ -391,8 +391,12 @@ if __name__ == '__main__':
                                         AddChanneld(keys=['image', 'label']),
                                         CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
                 if opt.weighted_sampling == "cropped":
+                    if opt.seg_loss:
+                        cropped_roi_size = (128, 128, 128)
+                    else:
+                        cropped_roi_size = (192, 224, 128)
                     train_transform_list.append(SpatialCropd(keys=['image', 'label', 'coords'],
-                                                             roi_size=(192, 224, 128),
+                                                             roi_size=cropped_roi_size,
                                                              roi_center=(0, 0, 0)))
 
                 train_transform_list.append(RandAffined(keys=["image", "label", "coords"],
@@ -431,7 +435,7 @@ if __name__ == '__main__':
                                   CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
             if opt.weighted_sampling == "cropped":
                 val_transform_list.append(SpatialCropd(keys=['image', 'label', 'coords'],
-                                                       roi_size=(192, 224, 128),
+                                                       roi_size=cropped_roi_size,
                                                        roi_center=(0, 0, 0)))
             if opt.znorm:
                 val_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
