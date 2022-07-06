@@ -392,7 +392,7 @@ if __name__ == '__main__':
                                         CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
                 if opt.weighted_sampling == "cropped":
                     if opt.seg_loss:
-                        cropped_roi_size = (128, 128, 128)
+                        cropped_roi_size = (112, 112, 112)
                     else:
                         cropped_roi_size = (192, 224, 128)
                     train_transform_list.append(SpatialCropd(keys=['image', 'label', 'coords'],
@@ -920,7 +920,6 @@ if __name__ == '__main__':
                     else:
                         Warning("Non numeric accuracy.")
 
-
                     # Determine whether to train D, G, both, or neither
                     if D_B_acc is None:
                         train_D_B = True
@@ -965,6 +964,9 @@ if __name__ == '__main__':
                         image_name = os.path.basename(train_sample[0]["image_meta_dict"]["filename_or_obj"][0])
                         label_name = os.path.basename(train_sample[0]["label_meta_dict"]["filename_or_obj"][0])
 
+                    # Affine
+                    train_aff = train_sample[0]['image_meta_dict']['affine'][0, ...]
+
                     if opt.t1_aid:
                         # Pass inputs to model and optimise: Forward loop
                         if opt.weighted_sampling == "cropped":
@@ -995,6 +997,7 @@ if __name__ == '__main__':
                             rec_B = G_A(torch.cat((post_gen_noise(fake_A), train_coords), dim=1))
                         else:
                             rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
+                    del train_coords, train_sample
                     # Training
                     # Only begin to train discriminator after model has started to converge
                     adv_start = time.time()
@@ -1008,12 +1011,12 @@ if __name__ == '__main__':
                     for _ in range(1):
                         # Update discriminator by looping N times
                         # with torch.cuda.amp.autocast(enabled=True):
-                        D_B_loss, real_D_B_acc, fake_D_B_acc, D_B_acc, _, fake_D_B_out = discriminator_loss(
+                        D_B_loss, real_D_B_acc, fake_D_B_acc, D_B_acc, _, _ = discriminator_loss(
                             gen_images=fake_B,
                             real_images=real_B,
                             discriminator=D_B,
                             real_label_flip_chance=opt.label_flipping_chance)
-                        D_A_loss, real_D_A_acc, fake_D_A_acc, D_A_acc, _, fake_D_A_out = discriminator_loss(
+                        D_A_loss, real_D_A_acc, fake_D_A_acc, D_A_acc, _, _ = discriminator_loss(
                             gen_images=fake_A,
                             real_images=real_A,
                             discriminator=D_A,
@@ -1083,11 +1086,11 @@ if __name__ == '__main__':
                         # Save, sometimes
                         if running_iter % 200 == 0:
                             save_img(seg_fake_A[:, 1, ...].squeeze().cpu().detach().numpy(),
-                                     train_sample[0]['image_meta_dict']['affine'][0, ...],
+                                     train_aff,
                                      os.path.join(FIG_DIR, f"seg_fake_A_iter_{running_iter}.nii.gz"),
                                      overwrite=True)
                             save_img(real_B.squeeze().cpu().detach().numpy(),
-                                     train_sample[0]['image_meta_dict']['affine'][0, ...],
+                                     train_aff,
                                      os.path.join(FIG_DIR, f"seg_real_B_iter_{running_iter}.nii.gz"),
                                      overwrite=True)
                         del seg_fake_A, slog_fake_A
@@ -1308,7 +1311,7 @@ if __name__ == '__main__':
                     running_iter += 1
 
                     # Clean-up
-                    del real_A, real_B, train_sample, rec_A, rec_B, train_coords, fake_D_A_out, fake_D_B_out
+                    del real_A, real_B, rec_A, rec_B
                     # del D_A_loss, D_B_loss, G_A_loss, G_B_loss, A_cycle, B_cycle
                     if opt.perceptual and train_G_A:
                         del A_perceptual_loss
