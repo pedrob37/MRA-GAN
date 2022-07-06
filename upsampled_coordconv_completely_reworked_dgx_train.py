@@ -955,6 +955,9 @@ if __name__ == '__main__':
                         # Names (Not needed for now)
                         image_name = os.path.basename(train_sample["image_meta_dict"]["filename_or_obj"][0])
                         label_name = os.path.basename(train_sample["label_meta_dict"]["filename_or_obj"][0])
+
+                        # Affine
+                        train_aff = train_sample['image_meta_dict']['affine'][0, ...]
                     else:
                         real_A = train_sample[0]['image'].cuda()
                         real_B = train_sample[0]['label'].cuda()
@@ -964,9 +967,8 @@ if __name__ == '__main__':
                         image_name = os.path.basename(train_sample[0]["image_meta_dict"]["filename_or_obj"][0])
                         label_name = os.path.basename(train_sample[0]["label_meta_dict"]["filename_or_obj"][0])
 
-                    # Affine
-                    train_aff = train_sample[0]['image_meta_dict']['affine'][0, ...]
-
+                        # Affine
+                        train_aff = train_sample[0]['image_meta_dict']['affine'][0, ...]
                     if opt.t1_aid:
                         # Pass inputs to model and optimise: Forward loop
                         if opt.weighted_sampling == "cropped":
