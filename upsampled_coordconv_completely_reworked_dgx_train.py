@@ -93,6 +93,7 @@ if __name__ == '__main__':
     # Data directory
     images_dir = os.path.join(opt.data_path, 'Images')  # MRA!
     labels_dir = os.path.join(opt.data_path, 'Labels')  # Binary!
+    bb_dir = os.path.join(opt.data_path, 'Bounding_Box')
     if opt.t1_aid:
         t1s_dir = os.path.join(opt.data_path, 'T1s')  # T1s!
 
@@ -140,7 +141,11 @@ if __name__ == '__main__':
     else:
         criterionCycleB = torch.nn.L1Loss()
     criterionIdt = torch.nn.L1Loss()
-    criterionDice = monai.losses.generalized_dice()
+    if opt.seg_loss:
+        if opt.bounding_box:
+            criterionDice = monai.losses.MaskedDiceLoss()
+        else:
+            criterionDice = monai.losses.generalized_dice()
 
     # MS-SSIM
     if opt.msssim:
@@ -339,10 +344,16 @@ if __name__ == '__main__':
     post_gen_noise = RandGaussianNoise(prob=1.0, mean=0.0, std=opt.gen_noise_std)
     if opt.t1_aid:
         general_keys_list = ['image', 'label', 'T1']
-        crop_keys_list = ['image', 'label', 'coords', 'T1']
+        if opt.bounding_box:
+            crop_keys_list = ['image', 'label', 'coords', 'T1', "BB"]
+        else:
+            crop_keys_list = ['image', 'label', 'coords', 'T1']
     else:
         general_keys_list = ['image', 'label']
-        crop_keys_list = ['image', 'label', 'coords']
+        if opt.bounding_box:
+            crop_keys_list = ['image', 'label', 'coords', 'BB']
+        else:
+            crop_keys_list = ['image', 'label', 'coords']
     if opt.phase == "train":
         if opt.augmentation_level == "heavy":
             train_transforms = Compose([LoadImaged(keys=['image', 'label']),
@@ -372,24 +383,43 @@ if __name__ == '__main__':
                                         ToTensord(keys=['image', 'label', 'coords'])])
         elif opt.augmentation_level == "light":
             if opt.t1_aid:
-                train_transform_list = [LoadImaged(keys=['image', 'label', 'T1']),
-                                        AddChanneld(keys=['image', 'label', 'T1']),
-                                        # monai.transforms.utils_pytorch_numpy_unification.clip(a, a_min, a_max),
-                                        ClipRanged(keys=["T1"], b_min=-110, b_max=6000),
-                                        CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
-                                        RandAffined(keys=["image", "label", "coords", 'T1'],
-                                                    scale_range=(0.1, 0.1, 0.1),
-                                                    rotate_range=(0.25, 0.25, 0.25),
-                                                    translate_range=(20, 20, 20),
-                                                    mode=("bilinear", "nearest", "nearest", 'bilinear'),
-                                                    as_tensor_output=False, prob=1.0,
-                                                    padding_mode=('zeros', 'zeros', 'border', 'zeros'))]
+                if opt.bounding_box:
+                    train_transform_list = [LoadImaged(keys=['image', 'label', 'T1', 'BB']),
+                                            AddChanneld(keys=['image', 'label', 'T1', 'BB']),
+                                            # monai.transforms.utils_pytorch_numpy_unification.clip(a, a_min, a_max),
+                                            ClipRanged(keys=["T1"], b_min=-110, b_max=6000),
+                                            CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
+                                            RandAffined(keys=["image", "label", "coords", 'T1', "BB"],
+                                                        scale_range=(0.1, 0.1, 0.1),
+                                                        rotate_range=(0.25, 0.25, 0.25),
+                                                        translate_range=(20, 20, 20),
+                                                        mode=("bilinear", "nearest", "nearest", 'bilinear', "nearest"),
+                                                        as_tensor_output=False, prob=1.0,
+                                                        padding_mode=('zeros', 'zeros', 'border', 'zeros', 'zeros'))]
+                else:
+                    train_transform_list = [LoadImaged(keys=['image', 'label', 'T1']),
+                                            AddChanneld(keys=['image', 'label', 'T1']),
+                                            # monai.transforms.utils_pytorch_numpy_unification.clip(a, a_min, a_max),
+                                            ClipRanged(keys=["T1"], b_min=-110, b_max=6000),
+                                            CoordConvd(keys=['image'], spatial_channels=(1, 2, 3)),  # (1, 2, 3)),
+                                            RandAffined(keys=["image", "label", "coords", 'T1'],
+                                                        scale_range=(0.1, 0.1, 0.1),
+                                                        rotate_range=(0.25, 0.25, 0.25),
+                                                        translate_range=(20, 20, 20),
+                                                        mode=("bilinear", "nearest", "nearest", 'bilinear'),
+                                                        as_tensor_output=False, prob=1.0,
+                                                        padding_mode=('zeros', 'zeros', 'border', 'zeros'))]
                 if opt.znorm:
                     train_transform_list.append(NormalizeIntensityd(keys=['image', 'T1'], channel_wise=True))
             else:
-                train_transform_list = [LoadImaged(keys=['image', 'label']),
-                                        AddChanneld(keys=['image', 'label']),
-                                        CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+                if opt.bounding_box:
+                    train_transform_list = [LoadImaged(keys=['image', 'label', 'BB']),
+                                            AddChanneld(keys=['image', 'label', 'BB']),
+                                            CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+                else:
+                    train_transform_list = [LoadImaged(keys=['image', 'label']),
+                                            AddChanneld(keys=['image', 'label']),
+                                            CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
                 if opt.weighted_sampling == "cropped":
                     if opt.seg_loss:
                         cropped_roi_size = (112, 112, 112)
@@ -399,13 +429,22 @@ if __name__ == '__main__':
                                                              roi_size=cropped_roi_size,
                                                              roi_center=(0, 0, 0)))
 
-                train_transform_list.append(RandAffined(keys=["image", "label", "coords"],
-                                                        scale_range=(0.1, 0.1, 0.1),
-                                                        rotate_range=(0.25, 0.25, 0.25),
-                                                        translate_range=(20, 20, 20),
-                                                        mode=("bilinear", "nearest", "nearest"),
-                                                        as_tensor_output=False, prob=1.0,
-                                                        padding_mode=('zeros', 'zeros', 'border')))
+                if opt.bounding_box:
+                    train_transform_list.append(RandAffined(keys=["image", "label", "coords", "BB"],
+                                                            scale_range=(0.1, 0.1, 0.1),
+                                                            rotate_range=(0.25, 0.25, 0.25),
+                                                            translate_range=(20, 20, 20),
+                                                            mode=("bilinear", "nearest", "nearest", "nearest"),
+                                                            as_tensor_output=False, prob=1.0,
+                                                            padding_mode=('zeros', 'zeros', 'border', 'zeros')))
+                else:
+                    train_transform_list.append(RandAffined(keys=["image", "label", "coords"],
+                                                            scale_range=(0.1, 0.1, 0.1),
+                                                            rotate_range=(0.25, 0.25, 0.25),
+                                                            translate_range=(20, 20, 20),
+                                                            mode=("bilinear", "nearest", "nearest"),
+                                                            as_tensor_output=False, prob=1.0,
+                                                            padding_mode=('zeros', 'zeros', 'border')))
                 if opt.znorm:
                     train_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
         elif opt.augmentation_level == "none":
@@ -421,6 +460,7 @@ if __name__ == '__main__':
                                         CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
                 if opt.znorm:
                     train_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
+
         # Validation
         if opt.t1_aid:
             val_transform_list = [LoadImaged(keys=['image', 'label', 'T1']),
@@ -771,6 +811,8 @@ if __name__ == '__main__':
             full_images = sorted(glob.glob(os.path.join(images_dir, "*.nii.gz")))
             full_labels = sorted(glob.glob(os.path.join(labels_dir, "*.nii.gz")))
 
+            bounding_box = [os.path.join(bb_dir, "bb2.nii.gz")]
+
             # Splits: Random NON-GLOBAL shuffle:
             # https://stackoverflow.com/questions/19306976/python-shuffling-with-a-parameter-to-get-the-same-result
             random.Random(1).shuffle(full_images)
@@ -797,20 +839,35 @@ if __name__ == '__main__':
                 random.Random(7).shuffle(val_t1s)
                 random.Random(10).shuffle(inf_t1s)
 
-                train_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
-                                   image_name, label_name, t1_name
-                                   in zip(cycle(train_images), train_labels, cycle(train_t1s))]
-                val_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
-                                 image_name, label_name, t1_name
-                                 in zip(cycle(val_images), val_labels, cycle(val_t1s))]
-                inf_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
-                                 image_name, label_name, t1_name
-                                 in zip(cycle(inf_images), inf_labels, cycle(inf_t1s))]
+                if not opt.bounding_box:
+                    train_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
+                                       image_name, label_name, t1_name
+                                       in zip(cycle(train_images), train_labels, cycle(train_t1s))]
+                    val_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
+                                     image_name, label_name, t1_name
+                                     in zip(cycle(val_images), val_labels, cycle(val_t1s))]
+                    inf_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
+                                     image_name, label_name, t1_name
+                                     in zip(cycle(inf_images), inf_labels, cycle(inf_t1s))]
+
+                elif opt.bounding_box:
+                    train_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name, "BB": bb_name} for
+                                       image_name, label_name, t1_name, bb_name
+                                       in zip(cycle(train_images), train_labels, cycle(train_t1s), cycle(bounding_box))]
+                    val_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
+                                     image_name, label_name, t1_name
+                                     in zip(cycle(val_images), val_labels, cycle(val_t1s))]
+                    inf_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
+                                     image_name, label_name, t1_name
+                                     in zip(cycle(inf_images), inf_labels, cycle(inf_t1s))]
+
                 print(f"Length of inference images, labels, T1s: {len(inf_images)}, {len(inf_labels)}, {len(inf_t1s)}")
             else:
-                train_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
-                                   in zip(cycle(train_images), train_labels)]
-                val_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
+                train_data_dict = [{'image': image_name, 'label': label_name, "BB": bb_name} for
+                                   image_name, label_name, bb_name
+                                   in zip(cycle(train_images), train_labels, cycle(bounding_box))]
+                val_data_dict = [{'image': image_name, 'label': label_name} for
+                                 image_name, label_name
                                  in zip(cycle(val_images), val_labels)]
                 inf_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
                                  in zip(cycle(inf_images), inf_labels)]
@@ -958,6 +1015,9 @@ if __name__ == '__main__':
 
                         # Affine
                         train_aff = train_sample['image_meta_dict']['affine'][0, ...]
+
+                        if opt.bounding_box:
+                            bb_mask = train_sample['BB'].cuda()
                     else:
                         real_A = train_sample[0]['image'].cuda()
                         real_B = train_sample[0]['label'].cuda()
@@ -969,6 +1029,10 @@ if __name__ == '__main__':
 
                         # Affine
                         train_aff = train_sample[0]['image_meta_dict']['affine'][0, ...]
+
+                        if opt.bounding_box:
+                            bb_mask = train_sample[0]['BB'].cuda()
+
                     if opt.t1_aid:
                         # Pass inputs to model and optimise: Forward loop
                         if opt.weighted_sampling == "cropped":
@@ -1083,7 +1147,12 @@ if __name__ == '__main__':
                                                                         dim=1)), dim=1)
 
                         # Loss
-                        loss_seg_fake_A_loss = opt.vseg_loss_scaling * criterionDice(seg_fake_A[:, 1, ...][:, None, ...], real_B)
+                        if opt.bounding_box:
+                            loss_seg_fake_A_loss = opt.vseg_loss_scaling * criterionDice(seg_fake_A[:, 1, ...][:, None, ...], real_B)
+                        else:
+                            loss_seg_fake_A_loss = opt.vseg_loss_scaling * criterionDice(input=seg_fake_A[:, 1, ...][:, None, ...],
+                                                                                         target=real_B,
+                                                                                         mask=bb_mask)
 
                         # Save, sometimes
                         if running_iter % 200 == 0:
@@ -1095,6 +1164,10 @@ if __name__ == '__main__':
                                      train_aff,
                                      os.path.join(FIG_DIR, f"seg_real_B_iter_{running_iter}.nii.gz"),
                                      overwrite=True)
+                            # save_img(bb_mask.squeeze().cpu().detach().numpy(),
+                            #          train_aff,
+                            #          os.path.join(FIG_DIR, f"bb_mask_iter_{running_iter}.nii.gz"),
+                            #          overwrite=True)
                         del seg_fake_A, slog_fake_A
 
                     # Total loss
@@ -1458,8 +1531,13 @@ if __name__ == '__main__':
                                                          dim=1)), dim=1)
 
                                 # Loss
-                                val_loss_seg_fake_A_loss = criterionDice(val_seg_fake_A[:, 1, ...][:, None, ...],
-                                                                         val_real_B)
+                                if opt.bounding_box:
+                                    val_loss_seg_fake_A_loss = criterionDice(val_seg_fake_A[:, 1, ...][:, None, ...],
+                                                                             val_real_B)
+                                else:
+                                    val_loss_seg_fake_A_loss = criterionDice(val_seg_fake_A[:, 1, ...][:, None, ...],
+                                                                             val_real_B,
+                                                                             mask=torch.ones_like(val_seg_fake_A).cuda())
 
                                 # Save, sometimes
                                 if val_iter % 200 == 0:

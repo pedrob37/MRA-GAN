@@ -50,6 +50,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--no_lsgan', type=self.str2bool, nargs='?', const=True, default=False, help='do *not* use least square GAN, if false, use vanilla GAN')
         parser.add_argument('--seg_loss', type=self.str2bool, nargs='?', const=True, default=False, help='Segmentation loss on fake A')
         parser.add_argument('--block_cycle_B', type=self.str2bool, nargs='?', const=True, default=False, help='Segmentation loss on fake A')
+        parser.add_argument('--bounding_box', type=self.str2bool, nargs='?', const=True, default=False, help='Bounding box for segmentation loss')
         parser.add_argument('--vseg_loss_scaling', type=float, default=1.0, help='Float scaler on segmentation loss')
         parser.add_argument('--vseg_epoch', type=int, default=20, help='When to start using Vseg')
         parser.add_argument('--pool_size', type=int, default=50, help='the size of image buffer that stores previously generated images')
