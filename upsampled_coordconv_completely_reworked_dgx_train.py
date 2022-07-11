@@ -1147,7 +1147,7 @@ if __name__ == '__main__':
                                                                         dim=1)), dim=1)
 
                         # Loss
-                        if opt.bounding_box:
+                        if not opt.bounding_box:
                             loss_seg_fake_A_loss = opt.vseg_loss_scaling * criterionDice(seg_fake_A[:, 1, ...][:, None, ...], real_B)
                         else:
                             loss_seg_fake_A_loss = opt.vseg_loss_scaling * criterionDice(input=seg_fake_A[:, 1, ...][:, None, ...],
