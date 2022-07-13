@@ -1531,7 +1531,7 @@ if __name__ == '__main__':
                                                          dim=1)), dim=1)
 
                                 # Loss
-                                if opt.bounding_box:
+                                if not opt.bounding_box:
                                     val_loss_seg_fake_A_loss = criterionDice(val_seg_fake_A[:, 1, ...][:, None, ...],
                                                                              val_real_B)
                                 else:
