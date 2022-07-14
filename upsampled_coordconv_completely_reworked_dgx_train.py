@@ -463,20 +463,35 @@ if __name__ == '__main__':
 
         # Validation
         if opt.t1_aid:
-            val_transform_list = [LoadImaged(keys=['image', 'label', 'T1']),
-                                  AddChanneld(keys=['image', 'label', 'T1']),
-                                  ClipRanged(keys=["T1"], b_min=-110, b_max=6000),
-                                  CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+            if opt.bounding_box:
+                val_transform_list = [LoadImaged(keys=['image', 'label', 'T1', 'BB']),
+                                      AddChanneld(keys=['image', 'label', 'T1', 'BB']),
+                                      ClipRanged(keys=["T1"], b_min=-110, b_max=6000),
+                                      CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+            else:
+                val_transform_list = [LoadImaged(keys=['image', 'label', 'T1', 'BB']),
+                                      AddChanneld(keys=['image', 'label', 'T1', 'BB']),
+                                      ClipRanged(keys=["T1"], b_min=-110, b_max=6000),
+                                      CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
             if opt.znorm:
                 val_transform_list.append(NormalizeIntensityd(keys=['image', 'T1'], channel_wise=True))
         else:
-            val_transform_list = [LoadImaged(keys=['image', 'label']),
-                                  AddChanneld(keys=['image', 'label']),
-                                  CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
-            if opt.weighted_sampling == "cropped":
-                val_transform_list.append(SpatialCropd(keys=['image', 'label', 'coords'],
-                                                       roi_size=cropped_roi_size,
-                                                       roi_center=(0, 0, 0)))
+            if opt.bounding_box:
+                val_transform_list = [LoadImaged(keys=['image', 'label', 'BB']),
+                                      AddChanneld(keys=['image', 'label', 'BB']),
+                                      CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+                if opt.weighted_sampling == "cropped":
+                    val_transform_list.append(SpatialCropd(keys=['image', 'label', 'coords', 'BB'],
+                                                           roi_size=cropped_roi_size,
+                                                           roi_center=(0, 0, 0)))
+            else:
+                val_transform_list = [LoadImaged(keys=['image', 'label']),
+                                      AddChanneld(keys=['image', 'label']),
+                                      CoordConvd(keys=['image'], spatial_channels=(1, 2, 3))]
+                if opt.weighted_sampling == "cropped":
+                    val_transform_list.append(SpatialCropd(keys=['image', 'label', 'coords'],
+                                                           roi_size=cropped_roi_size,
+                                                           roi_center=(0, 0, 0)))
             if opt.znorm:
                 val_transform_list.append(NormalizeIntensityd(keys=['image'], channel_wise=True))
 
@@ -618,6 +633,9 @@ if __name__ == '__main__':
                                                                "last_model_Nep2000.pth")), strict=True)
 
             vseg_model.eval()
+
+            for param in vseg_model.parameters():
+                param.requires_grad = False
 
         if opt.perceptual:
             import lpips
@@ -846,29 +864,34 @@ if __name__ == '__main__':
                     val_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
                                      image_name, label_name, t1_name
                                      in zip(cycle(val_images), val_labels, cycle(val_t1s))]
-                    inf_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
-                                     image_name, label_name, t1_name
-                                     in zip(cycle(inf_images), inf_labels, cycle(inf_t1s))]
 
                 elif opt.bounding_box:
                     train_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name, "BB": bb_name} for
                                        image_name, label_name, t1_name, bb_name
                                        in zip(cycle(train_images), train_labels, cycle(train_t1s), cycle(bounding_box))]
-                    val_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
-                                     image_name, label_name, t1_name
-                                     in zip(cycle(val_images), val_labels, cycle(val_t1s))]
-                    inf_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
-                                     image_name, label_name, t1_name
-                                     in zip(cycle(inf_images), inf_labels, cycle(inf_t1s))]
+                    val_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name, "BB": bb_name} for
+                                     image_name, label_name, t1_name, bb_name
+                                     in zip(cycle(val_images), val_labels, cycle(val_t1s), cycle(bounding_box))]
+                inf_data_dict = [{'image': image_name, 'label': label_name, 'T1': t1_name} for
+                                 image_name, label_name, t1_name
+                                 in zip(cycle(inf_images), inf_labels, cycle(inf_t1s))]
 
                 print(f"Length of inference images, labels, T1s: {len(inf_images)}, {len(inf_labels)}, {len(inf_t1s)}")
             else:
-                train_data_dict = [{'image': image_name, 'label': label_name, "BB": bb_name} for
-                                   image_name, label_name, bb_name
-                                   in zip(cycle(train_images), train_labels, cycle(bounding_box))]
-                val_data_dict = [{'image': image_name, 'label': label_name} for
-                                 image_name, label_name
-                                 in zip(cycle(val_images), val_labels)]
+                if opt.bounding_box:
+                    train_data_dict = [{'image': image_name, 'label': label_name, "BB": bb_name} for
+                                       image_name, label_name, bb_name
+                                       in zip(cycle(train_images), train_labels, cycle(bounding_box))]
+                    val_data_dict = [{'image': image_name, 'label': label_name, "BB": bb_name} for
+                                     image_name, label_name, bb_name
+                                     in zip(cycle(val_images), val_labels, cycle(bounding_box))]
+                else:
+                    train_data_dict = [{'image': image_name, 'label': label_name} for
+                                       image_name, label_name
+                                       in zip(cycle(train_images), train_labels)]
+                    val_data_dict = [{'image': image_name, 'label': label_name} for
+                                     image_name, label_name
+                                     in zip(cycle(val_images), val_labels)]
                 inf_data_dict = [{'image': image_name, 'label': label_name} for image_name, label_name
                                  in zip(cycle(inf_images), inf_labels)]
 
@@ -1140,20 +1163,20 @@ if __name__ == '__main__':
                     # idt_A_loss = criterionIdt(idt_A, real_B)
                     # idt_B_loss = criterionIdt(idt_B, real_A)
                     if opt.seg_loss and train_G_B and epoch >= opt.vseg_epoch:
-                        with torch.no_grad():
-                            slog_fake_A = preproc.process_conv(fake_A, dfk_file)
+                        # with torch.no_grad():
+                        slog_fake_A = preproc.process_conv(fake_A, dfk_file)
 
-                            # Output segmentation
-                            seg_fake_A = torch.softmax(vseg_model(torch.cat((fake_A, slog_fake_A[None, None, ...].cuda()),
-                                                                            dim=1)), dim=1)
+                        # Output segmentation
+                        seg_fake_A = torch.softmax(vseg_model(torch.cat((fake_A, slog_fake_A[None, None, ...].cuda()),
+                                                                        dim=1)), dim=1)
 
-                            # Loss
-                            if not opt.bounding_box:
-                                loss_seg_fake_A_loss = opt.vseg_loss_scaling * criterionDice(seg_fake_A[:, 1, ...][:, None, ...], real_B)
-                            else:
-                                loss_seg_fake_A_loss = opt.vseg_loss_scaling * criterionDice(input=seg_fake_A[:, 1, ...][:, None, ...],
-                                                                                             target=real_B,
-                                                                                             mask=bb_mask)
+                        # Loss
+                        if not opt.bounding_box:
+                            loss_seg_fake_A_loss = opt.vseg_loss_scaling * criterionDice(seg_fake_A[:, 1, ...][:, None, ...], real_B)
+                        else:
+                            loss_seg_fake_A_loss = opt.vseg_loss_scaling * criterionDice(input=seg_fake_A[:, 1, ...][:, None, ...],
+                                                                                         target=real_B,
+                                                                                         mask=bb_mask)
 
                         # Save, sometimes
                         if running_iter % 200 == 0:
@@ -1524,22 +1547,22 @@ if __name__ == '__main__':
                             val_B_cycle = criterionCycleB(val_rec_B, val_real_B)
 
                             if opt.seg_loss and epoch >= opt.vseg_epoch:
-                                with torch.no_grad():
-                                    val_slog_fake_A = preproc.process_conv(fake_A, dfk_file)
+                                # with torch.no_grad():
+                                val_slog_fake_A = preproc.process_conv(fake_A, dfk_file)
 
-                                    # Output segmentation
-                                    val_seg_fake_A = torch.softmax(
-                                        vseg_model(torch.cat((val_fake_A, val_slog_fake_A[None, None, ...].cuda()),
-                                                             dim=1)), dim=1)
+                                # Output segmentation
+                                val_seg_fake_A = torch.softmax(
+                                    vseg_model(torch.cat((val_fake_A, val_slog_fake_A[None, None, ...].cuda()),
+                                                         dim=1)), dim=1)
 
-                                    # Loss
-                                    if not opt.bounding_box:
-                                        val_loss_seg_fake_A_loss = criterionDice(val_seg_fake_A[:, 1, ...][:, None, ...],
-                                                                                 val_real_B)
-                                    else:
-                                        val_loss_seg_fake_A_loss = criterionDice(val_seg_fake_A[:, 1, ...][:, None, ...],
-                                                                                 val_real_B,
-                                                                                 mask=torch.ones_like(val_seg_fake_A).cuda())
+                                # Loss
+                                if not opt.bounding_box:
+                                    val_loss_seg_fake_A_loss = criterionDice(val_seg_fake_A[:, 1, ...][:, None, ...],
+                                                                             val_real_B)
+                                else:
+                                    val_loss_seg_fake_A_loss = criterionDice(val_seg_fake_A[:, 1, ...][:, None, ...],
+                                                                             val_real_B,
+                                                                             mask=torch.ones_like(val_seg_fake_A).cuda())
 
                                 # Save, sometimes
                                 if val_iter % 200 == 0:
