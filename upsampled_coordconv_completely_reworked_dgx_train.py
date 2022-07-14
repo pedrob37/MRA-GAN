@@ -1140,19 +1140,20 @@ if __name__ == '__main__':
                     # idt_A_loss = criterionIdt(idt_A, real_B)
                     # idt_B_loss = criterionIdt(idt_B, real_A)
                     if opt.seg_loss and train_G_B and epoch >= opt.vseg_epoch:
-                        slog_fake_A = preproc.process_conv(fake_A, dfk_file)
+                        with torch.no_grad():
+                            slog_fake_A = preproc.process_conv(fake_A, dfk_file)
 
-                        # Output segmentation
-                        seg_fake_A = torch.softmax(vseg_model(torch.cat((fake_A, slog_fake_A[None, None, ...].cuda()),
-                                                                        dim=1)), dim=1)
+                            # Output segmentation
+                            seg_fake_A = torch.softmax(vseg_model(torch.cat((fake_A, slog_fake_A[None, None, ...].cuda()),
+                                                                            dim=1)), dim=1)
 
-                        # Loss
-                        if not opt.bounding_box:
-                            loss_seg_fake_A_loss = opt.vseg_loss_scaling * criterionDice(seg_fake_A[:, 1, ...][:, None, ...], real_B)
-                        else:
-                            loss_seg_fake_A_loss = opt.vseg_loss_scaling * criterionDice(input=seg_fake_A[:, 1, ...][:, None, ...],
-                                                                                         target=real_B,
-                                                                                         mask=bb_mask)
+                            # Loss
+                            if not opt.bounding_box:
+                                loss_seg_fake_A_loss = opt.vseg_loss_scaling * criterionDice(seg_fake_A[:, 1, ...][:, None, ...], real_B)
+                            else:
+                                loss_seg_fake_A_loss = opt.vseg_loss_scaling * criterionDice(input=seg_fake_A[:, 1, ...][:, None, ...],
+                                                                                             target=real_B,
+                                                                                             mask=bb_mask)
 
                         # Save, sometimes
                         if running_iter % 200 == 0:
@@ -1523,21 +1524,22 @@ if __name__ == '__main__':
                             val_B_cycle = criterionCycleB(val_rec_B, val_real_B)
 
                             if opt.seg_loss and epoch >= opt.vseg_epoch:
-                                val_slog_fake_A = preproc.process_conv(fake_A, dfk_file)
+                                with torch.no_grad():
+                                    val_slog_fake_A = preproc.process_conv(fake_A, dfk_file)
 
-                                # Output segmentation
-                                val_seg_fake_A = torch.softmax(
-                                    vseg_model(torch.cat((val_fake_A, val_slog_fake_A[None, None, ...].cuda()),
-                                                         dim=1)), dim=1)
+                                    # Output segmentation
+                                    val_seg_fake_A = torch.softmax(
+                                        vseg_model(torch.cat((val_fake_A, val_slog_fake_A[None, None, ...].cuda()),
+                                                             dim=1)), dim=1)
 
-                                # Loss
-                                if not opt.bounding_box:
-                                    val_loss_seg_fake_A_loss = criterionDice(val_seg_fake_A[:, 1, ...][:, None, ...],
-                                                                             val_real_B)
-                                else:
-                                    val_loss_seg_fake_A_loss = criterionDice(val_seg_fake_A[:, 1, ...][:, None, ...],
-                                                                             val_real_B,
-                                                                             mask=torch.ones_like(val_seg_fake_A).cuda())
+                                    # Loss
+                                    if not opt.bounding_box:
+                                        val_loss_seg_fake_A_loss = criterionDice(val_seg_fake_A[:, 1, ...][:, None, ...],
+                                                                                 val_real_B)
+                                    else:
+                                        val_loss_seg_fake_A_loss = criterionDice(val_seg_fake_A[:, 1, ...][:, None, ...],
+                                                                                 val_real_B,
+                                                                                 mask=torch.ones_like(val_seg_fake_A).cuda())
 
                                 # Save, sometimes
                                 if val_iter % 200 == 0:

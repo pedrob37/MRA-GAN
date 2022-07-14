@@ -19,8 +19,8 @@ dfk_file = preproc.process_DFK()
 
 # List files to be segmented: IXI
 images_dir = arguments.images_dir
-os.chdir(images_dir)
-file_list = os.listdir(images_dir)
+os.chdir(os.path.join(images_dir, "Images"))
+file_list = os.listdir(os.path.join(images_dir, "Images"))
 
 # Filter, just in case
 file_list = [x for x in file_list if "nii.gz" in x]
@@ -35,15 +35,16 @@ vseg_model.eval()
 
 # Process files, loop
 for mra in file_list:
-    vol, aff = read_file(mra)
-    vol = (vol - vol.mean()) / vol.std()
-    vol = torch.FloatTensor(vol[None, None, ...]).cuda()
-    slog = preproc.process_conv(vol, dfk_file)
+    with torch.no_grad():
+        vol, aff = read_file(mra)
+        vol = (vol - vol.mean()) / vol.std()
+        vol = torch.FloatTensor(vol[None, None, ...]).cuda()
+        slog = preproc.process_conv(vol, dfk_file)
 
-    # # Output segmentation
-    inf_outputs = sliding_window_inference(torch.cat((vol, slog[None, None, ...].cuda()),
-                                                     dim=1), vol.shape, 1, vseg_model)
-    seg_fake_A = torch.softmax(inf_outputs, dim=1)
+        # # Output segmentation
+        inf_outputs = sliding_window_inference(torch.cat((vol, slog[None, None, ...].cuda()),
+                                                         dim=1), (160, 160, 160), 1, vseg_model)
+        seg_fake_A = torch.softmax(inf_outputs, dim=1)
 
     # Save
     save_img(seg_fake_A[:, 1, ...].squeeze().cpu().detach().numpy(),
