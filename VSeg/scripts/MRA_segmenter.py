@@ -50,5 +50,3 @@ for mra in file_list:
              aff,
              os.path.join(arguments.images_dir, 'Segs', f"Seg_{os.path.basename(mra)}"),
              overwrite=True)
-
-    break
