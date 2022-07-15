@@ -1468,6 +1468,9 @@ if __name__ == '__main__':
                                 label_name = os.path.basename(val_sample["label_meta_dict"]["filename_or_obj"][0])
                                 val_affine = val_sample['image_meta_dict']['affine'][0, ...]
                                 label_affine = val_sample['label_meta_dict']['affine'][0, ...]
+
+                                if opt.bounding_box:
+                                    val_bb_mask = val_sample['BB'].cuda()
                             else:
                                 val_real_A = val_sample[0]['image'].cuda()
                                 val_real_B = val_sample[0]['label'].cuda()
@@ -1477,6 +1480,9 @@ if __name__ == '__main__':
                                 label_name = os.path.basename(val_sample[0]["label_meta_dict"]["filename_or_obj"][0])
                                 val_affine = val_sample[0]['image_meta_dict']['affine'][0, ...]
                                 label_affine = val_sample[0]['label_meta_dict']['affine'][0, ...]
+
+                                if opt.bounding_box:
+                                    val_bb_mask = val_sample[0]['BB'].cuda()
 
                             # Forward
                             if opt.t1_aid:
@@ -1562,7 +1568,7 @@ if __name__ == '__main__':
                                 else:
                                     val_loss_seg_fake_A_loss = criterionDice(val_seg_fake_A[:, 1, ...][:, None, ...],
                                                                              val_real_B,
-                                                                             mask=torch.ones_like(val_seg_fake_A).cuda())
+                                                                             mask=val_bb_mask)
 
                                 # Save, sometimes
                                 if val_iter % 200 == 0:
@@ -1574,7 +1580,7 @@ if __name__ == '__main__':
                                              val_affine,
                                              os.path.join(FIG_DIR, f"val_real_B_iter_{running_iter}.nii.gz"),
                                              overwrite=True)
-                                del val_seg_fake_A, val_slog_fake_A
+                                del val_seg_fake_A, val_slog_fake_A, val_bb_mask
 
                             if opt.perceptual and not opt.msssim:
                                 val_A_perceptual_loss = perceptual_loss(val_real_A, val_rec_A, perceptual_net,
