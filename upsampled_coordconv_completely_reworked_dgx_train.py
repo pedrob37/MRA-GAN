@@ -140,7 +140,9 @@ if __name__ == '__main__':
         criterionCycleB = monai.losses.generalized_dice()
     else:
         criterionCycleB = torch.nn.L1Loss()
-    criterionIdt = torch.nn.L1Loss()
+    if opt.identity_loss:
+        criterionIdtB = torch.nn.L1Loss()
+        criterionIdtA = monai.losses.generalized_dice()
     if opt.seg_loss:
         if opt.bounding_box:
             criterionDice = monai.losses.MaskedDiceLoss()
@@ -1086,6 +1088,10 @@ if __name__ == '__main__':
                             rec_B = G_A(torch.cat((post_gen_noise(fake_A), train_coords), dim=1))
                         else:
                             rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
+                    if opt.identity_loss:
+                        idt_A = G_A(torch.cat((real_B, train_coords), dim=1))
+                        idt_B = G_B(torch.cat((real_A, train_coords), dim=1))
+
                     del train_coords, train_sample
                     # Training
                     # Only begin to train discriminator after model has started to converge
@@ -1154,14 +1160,16 @@ if __name__ == '__main__':
                     if train_G_A:
                         G_A_loss, G_A_acc = generator_loss(gen_images=fake_B, discriminator=D_B)
                         A_cycle = criterionCycleA(rec_A, real_A)
+                        if opt.identity_loss:
+                            idt_A_loss = criterionIdtA(idt_A, real_B) * opt.lambda_idt
                     if train_G_B:
                         G_B_loss, G_B_acc = generator_loss(gen_images=fake_A, discriminator=D_A)
                         if not opt.block_cycle_B:
                             B_cycle = criterionCycleB(rec_B, real_B)
+                        if opt.identity_loss:
+                            idt_B_loss = criterionIdtB(idt_B, real_A) * opt.lambda_idt
 
                     # Idt losses
-                    # idt_A_loss = criterionIdt(idt_A, real_B)
-                    # idt_B_loss = criterionIdt(idt_B, real_A)
                     if opt.seg_loss and train_G_B and epoch >= opt.vseg_epoch:
                         # with torch.no_grad():
                         slog_fake_A = preproc.process_conv(fake_A, dfk_file)
@@ -1240,6 +1248,10 @@ if __name__ == '__main__':
                     if opt.seg_loss and train_G_B and epoch >= opt.vseg_epoch:
                         total_G_B_loss = total_G_B_loss + loss_seg_fake_A_loss
 
+                    if train_G_A and opt.identity_loss:
+                        total_G_A_loss = total_G_A_loss + idt_A_loss
+                    if train_G_B and opt.identity_loss:
+                        total_G_B_loss = total_G_B_loss + idt_B_loss
                     # Backward
                     if train_G_A:
                         total_G_A_loss.backward()
