@@ -612,13 +612,15 @@ if __name__ == '__main__':
         # Generators
         if opt.final_act == "leaky":
             G_A_final_act = torch.nn.LeakyReLU()
+            G_B_final_act = torch.nn.LeakyReLU()
         elif opt.final_act == "sigmoid":
             G_A_final_act = torch.nn.Sigmoid()
+            G_B_final_act = torch.nn.Sigmoid()
         G_A = nnUNet(4, 1, dropout_level=0, final_act=G_A_final_act)
         if opt.t1_aid:
-            G_B = nnUNet(5, 1, dropout_level=0)
+            G_B = nnUNet(5, 1, dropout_level=0, final_act=G_B_final_act)
         else:
-            G_B = nnUNet(4, 1, dropout_level=0)
+            G_B = nnUNet(4, 1, dropout_level=0, final_act=G_B_final_act)
 
         if opt.seg_loss:
             # Process Mat file in advance: By far most computationally intensive component!
