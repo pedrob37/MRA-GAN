@@ -25,6 +25,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--gen_dice_cycle', type=self.str2bool, nargs='?', const=True, default=False, help='Whether to use generalised dice for cycle B')
         parser.add_argument('--cycle_noise', type=self.str2bool, nargs='?', const=True, default=False, help='Cycle noise for fake_B')
         parser.add_argument('--adversarial_loss_plot', type=self.str2bool, nargs='?', const=True, default=True, help='Plot loss or accuracy for adversarial')
+        parser.add_argument('--inf_fake_A_smooth', type=self.str2bool, nargs='?', const=True, default=False, help='Gaussian smoothing at inference')
         parser.add_argument('--range_correction', type=str, default="none", help='Type of correction for MS-SSIM loss')
         parser.add_argument('--upsampling_method', type=str, default="trilinear", help='Activation for G_A network: i.e. MRA -> Vasc.')
         parser.add_argument('--lambda_cycle', type=int, default=1, help='Multiplicative factor for cycle losses')

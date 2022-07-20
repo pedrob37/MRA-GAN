@@ -1840,6 +1840,17 @@ if __name__ == '__main__':
                         print(f"The MRA and vasculature names are: {image_name}, {label_name}")
 
                     del inf_real_A, inf_real_B, inf_sample, inf_coords
+
+                    # Process fake_A using gaussian kernels
+                    if opt.inf_fake_A_smooth:
+                        gaussian_kernel_s1 = monai.transforms.GaussianSmooth(sigma=1.0)
+                        gaussian_kernel_s3 = monai.transforms.GaussianSmooth(sigma=3.0)
+                        gaussian_kernel_s9 = monai.transforms.GaussianSmooth(sigma=9.0)
+
+                        fake_A_s1 = gaussian_kernel_s1(fake_A)
+                        fake_A_s3 = gaussian_kernel_s3(fake_A)
+                        fake_A_s9 = gaussian_kernel_s9(fake_A)
+
                     if opt.t1_aid:
                         del inf_real_T1
                         # Need to know which T1 was used for generation!
@@ -1854,6 +1865,19 @@ if __name__ == '__main__':
                              inf_affine,
                              os.path.join(FIG_DIR, "Fake_A_" + fake_image_basename),
                              overwrite=True)  # MRA
+                    if opt.inf_fake_A_smooth:
+                        save_img(normalise_images(fake_A_s1.cpu().detach().squeeze().numpy()),
+                                 inf_affine,
+                                 os.path.join(FIG_DIR, "Fake_A_s1_" + fake_image_basename),
+                                 overwrite=True)  # MRA
+                        save_img(normalise_images(fake_A_s3.cpu().detach().squeeze().numpy()),
+                                 inf_affine,
+                                 os.path.join(FIG_DIR, "Fake_A_s3_" + fake_image_basename),
+                                 overwrite=True)  # MRA
+                        save_img(normalise_images(fake_A_s9.cpu().detach().squeeze().numpy()),
+                                 inf_affine,
+                                 os.path.join(FIG_DIR, "Fake_A_s9_" + fake_image_basename),
+                                 overwrite=True)  # MRA
                     # # Add noise
                     # fake_B = torch.abs(post_gen_noise(fake_B))
                     save_img(normalise_images(fake_B.cpu().detach().squeeze().numpy()),
