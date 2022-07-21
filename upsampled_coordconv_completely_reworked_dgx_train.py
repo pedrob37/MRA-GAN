@@ -344,6 +344,7 @@ if __name__ == '__main__':
     # Augmentations/ Transforms
     # if opt.cycle_noise:
     post_gen_noise = RandGaussianNoise(prob=1.0, mean=0.0, std=opt.gen_noise_std)
+    gaussian_kernel = monai.transforms.GaussianSmooth(sigma=opt.gen_noise_std)
     if opt.t1_aid:
         general_keys_list = ['image', 'label', 'T1']
         if opt.bounding_box:
@@ -1072,7 +1073,7 @@ if __name__ == '__main__':
                         fake_A = G_B(torch.cat((real_B, real_T1, train_coords), dim=1))
                         # Reconstructed B
                         if opt.cycle_noise:
-                            rec_B = G_A(torch.cat((post_gen_noise(fake_A), train_coords), dim=1))
+                            rec_B = G_A(torch.cat((gaussian_kernel(fake_A[0, ...]), train_coords), dim=1))
                         else:
                             rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
                     else:
@@ -1085,7 +1086,7 @@ if __name__ == '__main__':
                         fake_A = G_B(torch.cat((real_B, train_coords), dim=1))
                         # Reconstructed B
                         if opt.cycle_noise:
-                            rec_B = G_A(torch.cat((post_gen_noise(fake_A), train_coords), dim=1))
+                            rec_B = G_A(torch.cat((gaussian_kernel(fake_A[0, ...]), train_coords), dim=1))
                         else:
                             rec_B = G_A(torch.cat((fake_A, train_coords), dim=1))
                     if opt.identity_loss:
@@ -1511,7 +1512,7 @@ if __name__ == '__main__':
                                 val_fake_A = G_B(torch.cat((val_real_B, val_real_T1, val_coords), dim=1))
                                 # Reconstructed B
                                 if opt.cycle_noise:
-                                    val_rec_B = G_A(torch.cat((post_gen_noise(val_fake_A), val_coords), dim=1))
+                                    val_rec_B = G_A(torch.cat((gaussian_kernel(val_fake_A[0, ...]), val_coords), dim=1))
                                 else:
                                     val_rec_B = G_A(torch.cat((val_fake_A, val_coords), dim=1))
                             else:
@@ -1524,7 +1525,7 @@ if __name__ == '__main__':
                                 val_fake_A = G_B(torch.cat((val_real_B, val_coords), dim=1))
                                 # Reconstructed B
                                 if opt.cycle_noise:
-                                    val_rec_B = G_A(torch.cat((post_gen_noise(val_fake_A), val_coords), dim=1))
+                                    val_rec_B = G_A(torch.cat((gaussian_kernel(val_fake_A[0, ...]), val_coords), dim=1))
                                 else:
                                     val_rec_B = G_A(torch.cat((val_fake_A, val_coords), dim=1))
 
@@ -1847,9 +1848,9 @@ if __name__ == '__main__':
                         gaussian_kernel_s3 = monai.transforms.GaussianSmooth(sigma=3.0)
                         gaussian_kernel_s9 = monai.transforms.GaussianSmooth(sigma=9.0)
 
-                        fake_A_s1 = gaussian_kernel_s1(fake_A)
-                        fake_A_s3 = gaussian_kernel_s3(fake_A)
-                        fake_A_s9 = gaussian_kernel_s9(fake_A)
+                        fake_A_s1 = gaussian_kernel_s1(fake_A[0, ...])
+                        fake_A_s3 = gaussian_kernel_s3(fake_A[0, ...])
+                        fake_A_s9 = gaussian_kernel_s9(fake_A[0, ...])
 
                     if opt.t1_aid:
                         del inf_real_T1
