@@ -364,7 +364,7 @@ if __name__ == '__main__':
                                                     scale_range=(0.1, 0.1, 0.1),
                                                     rotate_range=(0.25, 0.25, 0.25),
                                                     translate_range=(20, 20, 20),
-                                                    mode=("bilinear", "nearest", "nearest"),
+                                                    mode=("nearest", "nearest", "nearest"),
                                                     as_tensor_output=False, prob=1.0,
                                                     padding_mode=('zeros', 'zeros', 'border')),
                                         RandGaussianSmoothd(keys=["image"], prob=0.25,  # 0.2
@@ -373,7 +373,7 @@ if __name__ == '__main__':
                                                             sigma_z=(0.25, 0.3)),
                                         RandBiasFieldd(keys=["image"], degree=3, coeff_range=(0.1, 0.25),
                                                        prob=0.25),  # Odd behaviour...
-                                        NormalizeIntensityd(keys=['image'], channel_wise=True),
+                                        # NormalizeIntensityd(keys=['image'], channel_wise=True),
                                         RandGaussianNoiseD(keys=["image"], std=0.3, prob=0.5),
                                         RandSpatialCropSamplesd(keys=["image", "label", "coords"],
                                                                 roi_size=(
@@ -394,7 +394,7 @@ if __name__ == '__main__':
                                                         scale_range=(0.1, 0.1, 0.1),
                                                         rotate_range=(0.25, 0.25, 0.25),
                                                         translate_range=(20, 20, 20),
-                                                        mode=("bilinear", "nearest", "nearest", 'bilinear', "nearest"),
+                                                        mode=("nearest", "nearest", "nearest", 'bilinear', "nearest"),
                                                         as_tensor_output=False, prob=1.0,
                                                         padding_mode=('zeros', 'zeros', 'border', 'zeros', 'zeros'))]
                 else:
@@ -407,7 +407,7 @@ if __name__ == '__main__':
                                                         scale_range=(0.1, 0.1, 0.1),
                                                         rotate_range=(0.25, 0.25, 0.25),
                                                         translate_range=(20, 20, 20),
-                                                        mode=("bilinear", "nearest", "nearest", 'bilinear'),
+                                                        mode=("nearest", "nearest", "nearest", 'bilinear'),
                                                         as_tensor_output=False, prob=1.0,
                                                         padding_mode=('zeros', 'zeros', 'border', 'zeros'))]
                 if opt.znorm:
@@ -435,7 +435,7 @@ if __name__ == '__main__':
                                                             scale_range=(0.1, 0.1, 0.1),
                                                             rotate_range=(0.25, 0.25, 0.25),
                                                             translate_range=(20, 20, 20),
-                                                            mode=("bilinear", "nearest", "nearest", "nearest"),
+                                                            mode=("nearest", "nearest", "nearest", "nearest"),
                                                             as_tensor_output=False, prob=1.0,
                                                             padding_mode=('zeros', 'zeros', 'border', 'zeros')))
                 else:
@@ -443,7 +443,7 @@ if __name__ == '__main__':
                                                             scale_range=(0.1, 0.1, 0.1),
                                                             rotate_range=(0.25, 0.25, 0.25),
                                                             translate_range=(20, 20, 20),
-                                                            mode=("bilinear", "nearest", "nearest"),
+                                                            mode=("nearest", "nearest", "nearest"),
                                                             as_tensor_output=False, prob=1.0,
                                                             padding_mode=('zeros', 'zeros', 'border')))
                 if opt.znorm:
