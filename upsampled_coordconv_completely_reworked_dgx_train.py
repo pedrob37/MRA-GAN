@@ -1891,9 +1891,9 @@ if __name__ == '__main__':
                     # Saving: Reconstructions
                     save_img(normalise_images(rec_A.cpu().detach().squeeze().numpy()),
                              inf_affine,
-                             os.path.join(FIG_DIR, "Rec_A_" + fake_image_basename),
+                             os.path.join(FIG_DIR, "Rec_A_" + fake_vasc_basename),  # Based on original Image!
                              overwrite=True)
                     save_img(normalise_images(rec_B.cpu().detach().squeeze().numpy()),
                              inf_affine,
-                             os.path.join(FIG_DIR, "Rec_B_" + fake_vasc_basename),
+                             os.path.join(FIG_DIR, "Rec_B_" + fake_image_basename),  # Based on original Vasculature!
                              overwrite=True)
