@@ -136,6 +136,7 @@ if __name__ == '__main__':
 
     # Other cycle/ idt losses
     criterionCycleA = torch.nn.L1Loss()
+    dice_metric = monai.metrics.DiceMetric()
     if opt.gen_dice_cycle:
         criterionCycleB = monai.losses.generalized_dice()
     else:
@@ -1213,7 +1214,7 @@ if __name__ == '__main__':
                             if opt.block_cycle_B:
                                 total_G_B_loss = G_B_loss
                             else:
-                                total_G_B_loss = G_B_loss + B_cycle
+                                total_G_B_loss = G_B_loss + B_cycle * opt.B_cycle_weighting
                             # total_G_loss = G_A_loss + A_cycle + A_perceptual_loss + G_B_loss + B_cycle
                     elif not opt.perceptual and opt.msssim:
                         if train_G_A:

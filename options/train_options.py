@@ -31,6 +31,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--lambda_cycle', type=int, default=1, help='Multiplicative factor for cycle losses')
         parser.add_argument('--perceptual_weighting', type=int, default=1, help='Multiplicative factor for perceptual loss')
         parser.add_argument('--msssim_weighting', type=int, default=1, help='Multiplicative factor for msssim loss')
+        parser.add_argument('--B_cycle_weighting', type=int, default=1, help='Multiplicative factor for B cycle consistency loss')
         parser.add_argument('--save_latest_freq', type=int, default=1000, help='frequency of saving the latest results')
         parser.add_argument('--save_epoch_freq', type=int, default=50, help='frequency of saving checkpoints at the end of epochs')
         parser.add_argument('--continue_train', action='store_true', help='continue training: load the latest model')
