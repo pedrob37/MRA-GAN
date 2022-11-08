@@ -76,6 +76,3 @@ class TrainOptions(BaseOptions):
             return False
         else:
             raise argparse.ArgumentTypeError('Boolean value expected.')
-
-
-

@@ -1194,6 +1194,7 @@ if __name__ == '__main__':
                                      train_aff,
                                      os.path.join(FIG_DIR, f"seg_fake_A_iter_{running_iter}.nii.gz"),
                                      overwrite=True)
+
                             save_img(real_B.squeeze().cpu().detach().numpy(),
                                      train_aff,
                                      os.path.join(FIG_DIR, f"seg_real_B_iter_{running_iter}.nii.gz"),
